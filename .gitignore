@@ -21,6 +21,9 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# 文件（不推送到 GitHub）
+*.md
+
 # Cursor / Editor / OS
 .cursor/plans/
 .vscode/*
