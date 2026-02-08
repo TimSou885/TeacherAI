@@ -21,7 +21,8 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Editor / OS
+# Cursor / Editor / OS
+.cursor/plans/
 .vscode/*
 !.vscode/extensions.json
 .idea

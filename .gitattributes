@@ -1,0 +1,2 @@
+# 統一換行符：倉庫內用 LF，Windows 簽出時轉為 CRLF
+* text=auto eol=lf
