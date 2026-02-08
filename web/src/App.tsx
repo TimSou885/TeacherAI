@@ -1,14 +1,28 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
 import { hasSupabaseEnv } from './lib/supabase'
+import { getStudentSession } from './lib/api'
 import Home from './pages/Home'
 import Login from './pages/auth/Login'
 import Chat from './pages/student/Chat'
+import StudentLogin from './pages/student/StudentLogin'
+import StudentHome, {
+  StudentChatTab,
+  StudentPracticeTab,
+  StudentWritingTab,
+  StudentMeTab,
+} from './pages/student/StudentHome'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
   if (loading) return <div className="p-8 text-center">載入中…</div>
   if (!user) return <Navigate to="/login" replace />
+  return <>{children}</>
+}
+
+function StudentProtectedRoute({ children }: { children: React.ReactNode }) {
+  const session = getStudentSession()
+  if (!session) return <Navigate to="/student" replace />
   return <>{children}</>
 }
 
@@ -38,6 +52,14 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+        <Route path="/student" element={<StudentLogin />} />
+        <Route path="/student/home" element={<StudentProtectedRoute><StudentHome /></StudentProtectedRoute>}>
+          <Route index element={<Navigate to="/student/home/chat" replace />} />
+          <Route path="chat" element={<StudentChatTab />} />
+          <Route path="practice" element={<StudentPracticeTab />} />
+          <Route path="writing" element={<StudentWritingTab />} />
+          <Route path="me" element={<StudentMeTab />} />
+        </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

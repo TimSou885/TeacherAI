@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { authMiddleware } from './middleware/auth'
+import { authRoutes } from './routes/auth'
 import { chatRoutes } from './routes/chat'
 import { conversationRoutes } from './routes/conversations'
 import { adminEmbedRoutes } from './routes/admin-embed'
@@ -11,6 +12,8 @@ export type Env = {
   SUPABASE_JWT_SECRET: string
   AZURE_OPENAI_API_KEY: string
   AZURE_OPENAI_ENDPOINT: string
+  /** 學生 JWT 簽名用（Phase 1 學生登入） */
+  STUDENT_JWT_SECRET?: string
   /** RAG：Vectorize index（1536 維、cosine），可選 */
   VECTORIZE?: { query: (v: number[], o?: { topK?: number; returnMetadata?: boolean }) => Promise<{ matches?: Array<{ id: string; score: number; metadata?: Record<string, unknown> }> }>; insert: (v: Array<{ id: string; values: number[]; metadata?: Record<string, string> }>) => Promise<unknown> }
   /** 嵌入腳本用：POST /api/admin/embed 時帶此 secret，可選 */
@@ -34,6 +37,8 @@ app.use(
 
 app.options('*', (c) => c.body(null, 204))
 app.get('/', (c) => c.json({ name: 'eduspark-api', status: 'ok' }))
+
+app.route('/api/auth', authRoutes)
 
 app.use('/api/chat', authMiddleware)
 app.use('/api/conversations', authMiddleware)

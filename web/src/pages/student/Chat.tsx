@@ -1,12 +1,12 @@
 import { useState, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { apiChatStream, apiFetch } from '../../lib/api'
+import { apiChatStream, apiFetch, getStudentSession } from '../../lib/api'
 
 type Message = { id: string; role: 'user' | 'assistant'; content: string }
 
 type ConversationSummary = { id: string; title: string | null; updated_at: string }
 
-export default function Chat() {
+export default function Chat({ isStudent }: { isStudent?: boolean } = {}) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [streaming, setStreaming] = useState(false)
@@ -117,9 +117,11 @@ export default function Chat() {
           </button>
         </div>
         <h1 className="text-lg font-semibold text-amber-900">小明老師</h1>
-        <Link to="/" className="text-sm text-amber-700 hover:underline">
-          首頁
-        </Link>
+        {isStudent ? (
+          <Link to="/student/home" className="text-sm text-amber-700 hover:underline">首頁</Link>
+        ) : (
+          <Link to="/" className="text-sm text-amber-700 hover:underline">首頁</Link>
+        )}
       </header>
 
       {showHistory ? (
@@ -157,9 +159,23 @@ export default function Chat() {
         <>
           <div className="flex-1 overflow-auto p-4 space-y-4">
             {messages.length === 0 && (
-              <div className="text-center text-amber-800/80 py-8">
-                <p>你好！我是小明老師，你的中文學習助手。</p>
-                <p className="mt-2 text-sm">可以問我字詞意思、造句，或課文相關問題。</p>
+              <div className="text-center text-amber-800/80 py-8 px-4">
+                {isStudent ? (
+                  <>
+                    <p className="text-lg">你好，{getStudentSession()?.student.name ?? '同學'}！我是小明老師，你的中文學習助手。</p>
+                    <div className="flex justify-start mt-4">
+                      <div className="max-w-[85%] rounded-2xl px-4 py-2 bg-white border border-amber-100 text-amber-900 text-left">
+                        你最近在中文課上學了什麼？或是你覺得中文最難的是什麼？跟我說說吧～
+                      </div>
+                    </div>
+                    <p className="mt-4 text-sm">在下面輸入你的想法，按送出就可以開始跟我聊天囉！</p>
+                  </>
+                ) : (
+                  <>
+                    <p>你好！我是小明老師，你的中文學習助手。</p>
+                    <p className="mt-2 text-sm">可以問我字詞意思、造句，或課文相關問題。</p>
+                  </>
+                )}
               </div>
             )}
             {messages.map((m) => (

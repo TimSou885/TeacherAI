@@ -8,6 +8,7 @@ SUPABASE_URL = "https://gjeavzfghdjlnmkyenym.supabase.co"
 # Secrets (set via: npx wrangler secret put <NAME>)
 # SUPABASE_SERVICE_ROLE_KEY
 # SUPABASE_JWT_SECRET  (from Supabase Project Settings > API > JWT Secret)
+# STUDENT_JWT_SECRET   (Phase 1: 學生 JWT 簽名用，建議 32 字元以上隨機字串)
 # AZURE_OPENAI_API_KEY
 # AZURE_OPENAI_ENDPOINT (e.g. https://xxx.openai.azure.com/)
 

@@ -4,8 +4,9 @@ import { chatStream, parseAzureStream, generateConversationTitle, getEmbedding }
 import * as supabase from '../services/supabase'
 import { queryRag } from '../services/vectorize'
 import type { Env } from '../index'
+import type { AuthVariables } from '../middleware/auth'
 
-const app = new Hono<{ Bindings: Env; Variables: { userId: string } }>()
+const app = new Hono<{ Bindings: Env; Variables: AuthVariables }>()
 
 app.post('/chat', async (c) => {
   const userId = c.get('userId')
@@ -38,10 +39,12 @@ app.post('/chat', async (c) => {
     }
   }
 
+  const studentId = c.get('studentId') ?? null
   if (!conversationId) {
     try {
       conversationId = await supabase.createConversation(baseUrl, serviceKey, {
         subject: body.subject ?? 'chinese',
+        student_id: studentId,
       })
     } catch (e) {
       return c.json({ message: 'Failed to create conversation' }, 500)
@@ -68,9 +71,11 @@ app.post('/chat', async (c) => {
     }
   }
 
+  const studentName = c.get('studentName') ?? '同學'
+  const studentGradeLevel = c.get('studentGradeLevel') ?? 3
   const systemPrompt = getChatSystemPrompt({
-    studentName: '同學',
-    gradeLevel: 3,
+    studentName,
+    gradeLevel: studentGradeLevel,
     ragContext: ragContext || undefined,
   })
 

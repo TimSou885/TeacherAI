@@ -1,11 +1,40 @@
 const rawApiUrl = (import.meta.env.VITE_API_URL ?? '').trim()
-const API_URL = rawApiUrl && !/^https?:\/\//i.test(rawApiUrl)
+export const API_URL = rawApiUrl && !/^https?:\/\//i.test(rawApiUrl)
   ? `https://${rawApiUrl.replace(/^\/+/, '')}`
   : rawApiUrl
 
+const STUDENT_STORAGE_KEY = 'eduspark_student'
+
+export type StudentSession = {
+  token: string
+  student: { id: string; name: string; classId: string; gradeLevel: number }
+}
+
+export function getStudentSession(): StudentSession | null {
+  try {
+    const raw = localStorage.getItem(STUDENT_STORAGE_KEY)
+    if (!raw) return null
+    const data = JSON.parse(raw) as StudentSession
+    if (!data?.token || !data?.student?.id) return null
+    return data
+  } catch {
+    return null
+  }
+}
+
+export function setStudentSession(session: StudentSession): void {
+  localStorage.setItem(STUDENT_STORAGE_KEY, JSON.stringify(session))
+}
+
+export function clearStudentSession(): void {
+  localStorage.removeItem(STUDENT_STORAGE_KEY)
+}
+
 async function getToken(): Promise<string | null> {
   const { data: { session } } = await import('../lib/supabase').then(m => m.supabase.auth.getSession())
-  return session?.access_token ?? null
+  if (session?.access_token) return session.access_token
+  const student = getStudentSession()
+  return student?.token ?? null
 }
 
 export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {

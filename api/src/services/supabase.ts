@@ -19,7 +19,7 @@ export function supabaseFetch(
 export async function createConversation(
   baseUrl: string,
   serviceKey: string,
-  payload: { subject?: string; mode?: string }
+  payload: { subject?: string; mode?: string; student_id?: string | null }
 ) {
   const url = `${baseUrl.replace(/\/$/, '')}/rest/v1/conversations`
   const res = await supabaseFetch(url, serviceKey, {
@@ -27,6 +27,7 @@ export async function createConversation(
     body: JSON.stringify({
       subject: payload.subject ?? 'chinese',
       mode: payload.mode ?? 'chat',
+      ...(payload.student_id != null ? { student_id: payload.student_id } : {}),
     }),
     headers: { Prefer: 'return=representation' },
   })
@@ -55,11 +56,31 @@ export async function createMessage(
   return data[0].id
 }
 
-export async function listConversations(baseUrl: string, serviceKey: string) {
-  const url = `${baseUrl.replace(/\/$/, '')}/rest/v1/conversations?order=updated_at.desc&select=id,title,updated_at`
+export async function listConversations(
+  baseUrl: string,
+  serviceKey: string,
+  options?: { student_id?: string }
+) {
+  let url = `${baseUrl.replace(/\/$/, '')}/rest/v1/conversations?order=updated_at.desc&select=id,title,updated_at`
+  if (options?.student_id) {
+    url += `&student_id=eq.${options.student_id}`
+  }
   const res = await supabaseFetch(url, serviceKey)
   if (!res.ok) throw new Error(`Supabase: ${await res.text()}`)
   return (await res.json()) as Array<{ id: string; title: string | null; updated_at: string }>
+}
+
+/** 取得單一對話的 student_id（用於權限檢查） */
+export async function getConversationStudentId(
+  baseUrl: string,
+  serviceKey: string,
+  conversationId: string
+): Promise<string | null> {
+  const url = `${baseUrl.replace(/\/$/, '')}/rest/v1/conversations?id=eq.${conversationId}&select=student_id`
+  const res = await supabaseFetch(url, serviceKey)
+  if (!res.ok) throw new Error(`Supabase: ${await res.text()}`)
+  const rows = (await res.json()) as Array<{ student_id: string | null }>
+  return rows.length > 0 ? rows[0].student_id ?? null : null
 }
 
 export async function getConversationMessages(
@@ -108,6 +129,73 @@ export async function deleteConversation(
   const url = `${baseUrl.replace(/\/$/, '')}/rest/v1/conversations?id=eq.${conversationId}`
   const res = await supabaseFetch(url, serviceKey, { method: 'DELETE' })
   if (!res.ok) throw new Error(`Supabase: ${await res.text()}`)
+}
+
+/** 依班級代碼查詢班級與學生名單（學生登入用，不需認證） */
+export async function getClassByJoinCode(
+  baseUrl: string,
+  serviceKey: string,
+  joinCode: string
+): Promise<{
+  classId: string
+  className: string
+  students: Array<{ id: string; name: string; display_name: string | null; grade_level: number | null }>
+} | null> {
+  const code = joinCode.trim().toUpperCase()
+  if (!code) return null
+  const classUrl = `${baseUrl.replace(/\/$/, '')}/rest/v1/classes?join_code=eq.${encodeURIComponent(code)}&select=id,name`
+  const classRes = await supabaseFetch(classUrl, serviceKey)
+  if (!classRes.ok) throw new Error(`Supabase: ${await classRes.text()}`)
+  const classes = (await classRes.json()) as Array<{ id: string; name: string }>
+  if (classes.length === 0) return null
+  const classId = classes[0].id
+  const className = classes[0].name
+  const studentsUrl = `${baseUrl.replace(/\/$/, '')}/rest/v1/students?class_id=eq.${classId}&select=id,name,display_name,grade_level&order=name.asc`
+  const studentsRes = await supabaseFetch(studentsUrl, serviceKey)
+  if (!studentsRes.ok) throw new Error(`Supabase: ${await studentsRes.text()}`)
+  const students = (await studentsRes.json()) as Array<{
+    id: string
+    name: string
+    display_name: string | null
+    grade_level: number | null
+  }>
+  return { classId, className, students }
+}
+
+/** 驗證學生屬於該班級（依班級代碼 + 學生 ID） */
+export async function getStudentInClass(
+  baseUrl: string,
+  serviceKey: string,
+  joinCode: string,
+  studentId: string
+): Promise<{
+  id: string
+  name: string
+  display_name: string | null
+  grade_level: number | null
+  class_id: string
+  school_id: string | null
+} | null> {
+  const code = joinCode.trim().toUpperCase()
+  if (!code || !studentId) return null
+  const classUrl = `${baseUrl.replace(/\/$/, '')}/rest/v1/classes?join_code=eq.${encodeURIComponent(code)}&select=id`
+  const classRes = await supabaseFetch(classUrl, serviceKey)
+  if (!classRes.ok) throw new Error(`Supabase: ${await classRes.text()}`)
+  const classes = (await classRes.json()) as Array<{ id: string }>
+  if (classes.length === 0) return null
+  const classId = classes[0].id
+  const studentUrl = `${baseUrl.replace(/\/$/, '')}/rest/v1/students?id=eq.${studentId}&class_id=eq.${classId}&select=id,name,display_name,grade_level,class_id,school_id`
+  const studentRes = await supabaseFetch(studentUrl, serviceKey)
+  if (!studentRes.ok) throw new Error(`Supabase: ${await studentRes.text()}`)
+  const rows = (await studentRes.json()) as Array<{
+    id: string
+    name: string
+    display_name: string | null
+    grade_level: number | null
+    class_id: string
+    school_id: string | null
+  }>
+  return rows.length > 0 ? rows[0] : null
 }
 
 /** 寫入 embeddings_log（RAG 嵌入追蹤） */
