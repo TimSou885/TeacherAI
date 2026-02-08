@@ -1,0 +1,21 @@
+name = "eduspark-api"
+main = "src/index.ts"
+compatibility_date = "2026-02-01"
+
+[vars]
+SUPABASE_URL = ""
+
+# Secrets (set via: npx wrangler secret put <NAME>)
+# SUPABASE_SERVICE_ROLE_KEY
+# SUPABASE_JWT_SECRET  (from Supabase Project Settings > API > JWT Secret)
+# AZURE_OPENAI_API_KEY
+# AZURE_OPENAI_ENDPOINT (e.g. https://xxx.openai.azure.com/)
+
+# Optional for Phase 0 (RAG later)
+# [[kv_namespaces]]
+# binding = "CACHE"
+# id = ""
+
+# [[vectorize]]
+# binding = "VECTORIZE"
+# index_name = "eduspark-embeddings"

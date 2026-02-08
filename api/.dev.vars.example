@@ -1,0 +1,6 @@
+# Copy to .dev.vars for local wrangler dev (do not commit .dev.vars)
+SUPABASE_URL=https://xxxxx.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+SUPABASE_JWT_SECRET=your-jwt-secret-from-supabase-api-settings
+AZURE_OPENAI_API_KEY=your-azure-openai-key
+AZURE_OPENAI_ENDPOINT=https://xxx.openai.azure.com
