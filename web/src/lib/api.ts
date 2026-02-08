@@ -30,15 +30,27 @@ export function clearStudentSession(): void {
   localStorage.removeItem(STUDENT_STORAGE_KEY)
 }
 
-async function getToken(): Promise<string | null> {
+/** 學生情境（如 /student/home）下傳 true，只會帶學生 token，API 才會篩選該學生的對話 */
+async function getToken(preferStudent?: boolean): Promise<string | null> {
+  if (preferStudent) {
+    const student = getStudentSession()
+    if (student?.token) return student.token
+  }
   const { data: { session } } = await import('../lib/supabase').then(m => m.supabase.auth.getSession())
   if (session?.access_token) return session.access_token
-  const student = getStudentSession()
-  return student?.token ?? null
+  if (!preferStudent) {
+    const student = getStudentSession()
+    return student?.token ?? null
+  }
+  return null
 }
 
-export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
-  const token = await getToken()
+export async function apiFetch(
+  path: string,
+  init?: RequestInit,
+  options?: { preferStudent?: boolean }
+): Promise<Response> {
+  const token = await getToken(options?.preferStudent)
   const url = path.startsWith('http') ? path : `${API_URL}${path}`
   const headers = new Headers(init?.headers)
   if (token) headers.set('Authorization', `Bearer ${token}`)
@@ -49,9 +61,10 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
 export async function apiChatStream(
   body: { conversationId?: string; message: string; subject?: string },
   onChunk: (text: string) => void,
-  onDone?: (conversationId: string) => void
+  onDone?: (conversationId: string) => void,
+  options?: { preferStudent?: boolean }
 ): Promise<void> {
-  const token = await getToken()
+  const token = await getToken(options?.preferStudent)
   // #region agent log
   fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:apiChatStream',message:'before chat request',data:{hasToken:!!token,tokenLength:token?.length ?? 0,apiUrl:API_URL || '(empty)'},timestamp:Date.now(),hypothesisId:'H1_H2'})}).catch(()=>{});
   // #endregion

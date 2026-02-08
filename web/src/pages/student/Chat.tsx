@@ -20,7 +20,7 @@ export default function Chat({ isStudent }: { isStudent?: boolean } = {}) {
   }, [messages])
 
   async function loadConversations() {
-    const res = await apiFetch('/api/conversations')
+    const res = await apiFetch('/api/conversations', undefined, { preferStudent: isStudent })
     if (!res.ok) return
     const data = (await res.json()) as { conversations?: ConversationSummary[] }
     setConversations(data.conversations ?? [])
@@ -31,7 +31,7 @@ export default function Chat({ isStudent }: { isStudent?: boolean } = {}) {
   }, [])
 
   async function loadConversation(id: string) {
-    const res = await apiFetch(`/api/conversations/${id}`)
+    const res = await apiFetch(`/api/conversations/${id}`, undefined, { preferStudent: isStudent })
     if (!res.ok) return
     const data = (await res.json()) as { messages?: Message[] }
     setMessages(data.messages ?? [])
@@ -65,7 +65,8 @@ export default function Chat({ isStudent }: { isStudent?: boolean } = {}) {
         (newConvId) => {
           setConversationId(newConvId)
           loadConversations()
-        }
+        },
+        { preferStudent: isStudent }
       )
     } catch (e) {
       const err = e instanceof Error ? e.message : '發送失敗'
@@ -87,7 +88,7 @@ export default function Chat({ isStudent }: { isStudent?: boolean } = {}) {
 
   async function deleteConversation(id: string) {
     if (!window.confirm('確定要刪除這則對話嗎？')) return
-    const res = await apiFetch(`/api/conversations/${id}`, { method: 'DELETE' })
+    const res = await apiFetch(`/api/conversations/${id}`, { method: 'DELETE' }, { preferStudent: isStudent })
     if (!res.ok) return
     if (conversationId === id) {
       setConversationId(null)
