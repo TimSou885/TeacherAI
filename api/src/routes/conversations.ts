@@ -10,7 +10,11 @@ app.get('/conversations', async (c) => {
   const serviceKey = c.env.SUPABASE_SERVICE_ROLE_KEY
   const studentId = c.get('studentId')
   try {
-    const list = await supabase.listConversations(baseUrl, serviceKey, studentId ? { student_id: studentId } : undefined)
+    const list = await supabase.listConversations(
+      baseUrl,
+      serviceKey,
+      studentId ? { student_id: studentId } : { teacher_only: true }
+    )
     return c.json({ conversations: list })
   } catch (e) {
     return c.json({ message: (e as Error).message }, 500)
@@ -23,11 +27,11 @@ app.get('/conversations/:id', async (c) => {
   const serviceKey = c.env.SUPABASE_SERVICE_ROLE_KEY
   const studentId = c.get('studentId')
   try {
+    const convStudentId = await supabase.getConversationStudentId(baseUrl, serviceKey, id)
     if (studentId) {
-      const convStudentId = await supabase.getConversationStudentId(baseUrl, serviceKey, id)
-      if (convStudentId !== studentId) {
-        return c.json({ message: 'Not found' }, 404)
-      }
+      if (convStudentId !== studentId) return c.json({ message: 'Not found' }, 404)
+    } else {
+      if (convStudentId !== null) return c.json({ message: 'Not found' }, 404)
     }
     const rows = await supabase.getConversationMessages(baseUrl, serviceKey, id)
     const messages = rows.map((r) => ({
@@ -47,11 +51,11 @@ app.delete('/conversations/:id', async (c) => {
   const serviceKey = c.env.SUPABASE_SERVICE_ROLE_KEY
   const studentId = c.get('studentId')
   try {
+    const convStudentId = await supabase.getConversationStudentId(baseUrl, serviceKey, id)
     if (studentId) {
-      const convStudentId = await supabase.getConversationStudentId(baseUrl, serviceKey, id)
-      if (convStudentId !== studentId) {
-        return c.json({ message: 'Not found' }, 404)
-      }
+      if (convStudentId !== studentId) return c.json({ message: 'Not found' }, 404)
+    } else {
+      if (convStudentId !== null) return c.json({ message: 'Not found' }, 404)
     }
     await supabase.deleteConversation(baseUrl, serviceKey, id)
     return c.json({ ok: true })

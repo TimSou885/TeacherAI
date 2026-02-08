@@ -59,11 +59,13 @@ export async function createMessage(
 export async function listConversations(
   baseUrl: string,
   serviceKey: string,
-  options?: { student_id?: string }
+  options?: { student_id?: string; teacher_only?: boolean }
 ) {
   let url = `${baseUrl.replace(/\/$/, '')}/rest/v1/conversations?order=updated_at.desc&select=id,title,updated_at`
   if (options?.student_id) {
     url += `&student_id=eq.${options.student_id}`
+  } else if (options?.teacher_only) {
+    url += `&student_id=is.null`
   }
   const res = await supabaseFetch(url, serviceKey)
   if (!res.ok) throw new Error(`Supabase: ${await res.text()}`)
