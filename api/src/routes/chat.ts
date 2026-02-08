@@ -1,7 +1,8 @@
 import { Hono } from 'hono'
 import { getChatSystemPrompt } from '../subjects/chinese/prompts/chat-system'
-import { chatStream, parseAzureStream, generateConversationTitle } from '../services/azure-openai'
+import { chatStream, parseAzureStream, generateConversationTitle, getEmbedding } from '../services/azure-openai'
 import * as supabase from '../services/supabase'
+import { queryRag } from '../services/vectorize'
 import type { Env } from '../index'
 
 const app = new Hono<{ Bindings: Env; Variables: { userId: string } }>()
@@ -54,9 +55,23 @@ app.post('/chat', async (c) => {
   })
   history.push({ role: 'user', content: message })
 
+  const endpoint = (c.env.AZURE_OPENAI_ENDPOINT ?? '').trim()
+  const apiKey = (c.env.AZURE_OPENAI_API_KEY ?? '').trim()
+  let ragContext = ''
+  if (c.env.VECTORIZE && endpoint && apiKey) {
+    try {
+      const embedding = await getEmbedding(endpoint, apiKey, message)
+      const matches = await queryRag(c.env.VECTORIZE, embedding, 3)
+      ragContext = matches.map((m) => m.metadata?.text).filter(Boolean).join('\n\n')
+    } catch {
+      // RAG 失敗不影響對話，略過
+    }
+  }
+
   const systemPrompt = getChatSystemPrompt({
     studentName: '同學',
     gradeLevel: 3,
+    ragContext: ragContext || undefined,
   })
 
   const openAiMessages = [
@@ -64,8 +79,6 @@ app.post('/chat', async (c) => {
     ...history.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
   ]
 
-  const endpoint = (c.env.AZURE_OPENAI_ENDPOINT ?? '').trim()
-  const apiKey = (c.env.AZURE_OPENAI_API_KEY ?? '').trim()
   if (!endpoint || !apiKey) {
     return c.json(
       { message: 'Azure OpenAI 未設定', detail: '請在 .dev.vars 設定 AZURE_OPENAI_ENDPOINT 與 AZURE_OPENAI_API_KEY' },

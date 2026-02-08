@@ -1,4 +1,7 @@
-const API_URL = import.meta.env.VITE_API_URL ?? ''
+const rawApiUrl = (import.meta.env.VITE_API_URL ?? '').trim()
+const API_URL = rawApiUrl && !/^https?:\/\//i.test(rawApiUrl)
+  ? `https://${rawApiUrl.replace(/^\/+/, '')}`
+  : rawApiUrl
 
 async function getToken(): Promise<string | null> {
   const { data: { session } } = await import('../lib/supabase').then(m => m.supabase.auth.getSession())

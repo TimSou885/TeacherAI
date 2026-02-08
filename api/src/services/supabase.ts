@@ -109,3 +109,32 @@ export async function deleteConversation(
   const res = await supabaseFetch(url, serviceKey, { method: 'DELETE' })
   if (!res.ok) throw new Error(`Supabase: ${await res.text()}`)
 }
+
+/** 寫入 embeddings_log（RAG 嵌入追蹤） */
+export async function createEmbeddingLog(
+  baseUrl: string,
+  serviceKey: string,
+  payload: {
+    content_type: string
+    content_id?: string | null
+    class_id?: string | null
+    subject?: string
+    content_text: string
+    vector_id: string
+  }
+) {
+  const url = `${baseUrl.replace(/\/$/, '')}/rest/v1/embeddings_log`
+  const res = await supabaseFetch(url, serviceKey, {
+    method: 'POST',
+    body: JSON.stringify({
+      content_type: payload.content_type,
+      content_id: payload.content_id ?? null,
+      class_id: payload.class_id ?? null,
+      subject: payload.subject ?? 'chinese',
+      content_text: payload.content_text.slice(0, 10000),
+      vector_id: payload.vector_id,
+    }),
+    headers: { Prefer: 'return=minimal' },
+  })
+  if (!res.ok) throw new Error(`Supabase: ${await res.text()}`)
+}

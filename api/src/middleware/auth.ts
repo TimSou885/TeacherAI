@@ -7,6 +7,7 @@ const getJwks = (supabaseUrl: string) =>
 
 export const authMiddleware = createMiddleware<{ Bindings: Env; Variables: { userId: string } }>(
   async (c, next) => {
+    if (c.req.method === 'OPTIONS') return next()
     const auth = c.req.header('Authorization')
     const token = auth?.startsWith('Bearer ') ? auth.slice(7) : null
     // #region agent log

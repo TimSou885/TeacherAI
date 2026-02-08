@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
+import { hasSupabaseEnv } from './lib/supabase'
 import Home from './pages/Home'
 import Login from './pages/auth/Login'
 import Chat from './pages/student/Chat'
@@ -12,6 +13,18 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  if (!hasSupabaseEnv) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-amber-50 p-4">
+        <div className="max-w-md text-center text-amber-900">
+          <p className="font-medium">環境變數未設定</p>
+          <p className="mt-2 text-sm text-amber-700">
+            請在 Cloudflare Pages 的 Environment variables 設定 VITE_SUPABASE_URL 與 VITE_SUPABASE_ANON_KEY，然後重新部署。
+          </p>
+        </div>
+      </div>
+    )
+  }
   return (
     <BrowserRouter>
       <Routes>

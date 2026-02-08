@@ -1,7 +1,32 @@
 const DEPLOYMENT_CHAT = 'gpt-4o-mini'
+const DEPLOYMENT_EMBED = 'text-embedding-3-small'
 const API_VERSION = '2024-02-15-preview'
+const EMBED_DIMENSIONS = 1536
 
 export type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string }
+
+/** 取得單段文字的 embedding（1536 維，供 Vectorize 使用） */
+export async function getEmbedding(endpoint: string, apiKey: string, text: string): Promise<number[]> {
+  const url = `${endpoint.replace(/\/$/, '')}/openai/deployments/${DEPLOYMENT_EMBED}/embeddings?api-version=${API_VERSION}`
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'api-key': apiKey,
+    },
+    body: JSON.stringify({ input: text.slice(0, 8000) }),
+  })
+  if (!res.ok) {
+    const err = await res.text()
+    throw new Error(`Azure OpenAI Embeddings: ${res.status} ${err}`)
+  }
+  const data = (await res.json()) as { data?: Array<{ embedding?: number[] }> }
+  const embedding = data.data?.[0]?.embedding
+  if (!embedding || embedding.length !== EMBED_DIMENSIONS) {
+    throw new Error(`Azure OpenAI Embeddings: unexpected response shape`)
+  }
+  return embedding
+}
 
 /** 根據第一則使用者訊息與助手回覆生成簡短標題（非串流） */
 export async function generateConversationTitle(

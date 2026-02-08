@@ -1,9 +1,9 @@
-name = "eduspark-api"
+name = "teacherai"
 main = "src/index.ts"
 compatibility_date = "2026-02-01"
 
 [vars]
-SUPABASE_URL = ""
+SUPABASE_URL = "https://gjeavzfghdjlnmkyenym.supabase.co"
 
 # Secrets (set via: npx wrangler secret put <NAME>)
 # SUPABASE_SERVICE_ROLE_KEY
@@ -16,6 +16,8 @@ SUPABASE_URL = ""
 # binding = "CACHE"
 # id = ""
 
-# [[vectorize]]
-# binding = "VECTORIZE"
-# index_name = "eduspark-embeddings"
+# RAG：請先執行一次：npx wrangler vectorize create teacherai-embeddings --dimensions=1536 --metric=cosine
+# 並設定 secret：npx wrangler secret put ADMIN_EMBED_SECRET
+[[vectorize]]
+binding = "VECTORIZE"
+index_name = "teacherai-embeddings"

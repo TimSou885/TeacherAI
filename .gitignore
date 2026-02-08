@@ -23,6 +23,8 @@ pnpm-debug.log*
 
 # 文件（不推送到 GitHub）
 *.md
+*.bat
+*.txt
 
 # Cursor / Editor / OS
 .cursor/plans/
