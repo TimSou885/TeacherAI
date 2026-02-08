@@ -49,7 +49,7 @@ export default function StudentHome() {
             className="flex-1 flex flex-col items-center justify-center py-2 min-h-[44px] touch-manipulation text-amber-900 hover:bg-amber-50/50 transition"
           >
             <span className="text-lg" aria-hidden>{t.icon}</span>
-            <span className="text-[16px]" style={{ minFontSize: 16 }}>{t.label}</span>
+            <span className="text-[16px]">{t.label}</span>
           </button>
         ))}
       </nav>
