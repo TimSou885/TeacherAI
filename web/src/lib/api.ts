@@ -30,27 +30,24 @@ export function clearStudentSession(): void {
   localStorage.removeItem(STUDENT_STORAGE_KEY)
 }
 
-/** 學生情境（如 /student/home）下傳 true，只會帶學生 token，API 才會篩選該學生的對話 */
+/** 學生情境（如 /student/home、測驗交卷）下傳 true，只帶學生 token，絕不帶老師 token */
 async function getToken(preferStudent?: boolean): Promise<string | null> {
   if (preferStudent) {
     const student = getStudentSession()
-    if (student?.token) return student.token
+    return student?.token ?? null
   }
   const { data: { session } } = await import('../lib/supabase').then(m => m.supabase.auth.getSession())
   if (session?.access_token) return session.access_token
-  if (!preferStudent) {
-    const student = getStudentSession()
-    return student?.token ?? null
-  }
-  return null
+  const student = getStudentSession()
+  return student?.token ?? null
 }
 
 export async function apiFetch(
   path: string,
   init?: RequestInit,
-  options?: { preferStudent?: boolean }
+  options?: { preferStudent?: boolean; /** 若提供則強制使用此 token（用於交卷等必須為學生 token 的請求） */ token?: string | null }
 ): Promise<Response> {
-  const token = await getToken(options?.preferStudent)
+  const token = options?.token !== undefined ? options.token : await getToken(options?.preferStudent)
   const url = path.startsWith('http') ? path : `${API_URL}${path}`
   const headers = new Headers(init?.headers)
   if (token) headers.set('Authorization', `Bearer ${token}`)

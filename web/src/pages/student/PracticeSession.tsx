@@ -58,7 +58,7 @@ export default function PracticeSession({
     // #region agent log
     fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PracticeSession:handleSubmit',message:'before submit',data:{hasSession:!!session,tokenLen:session?.token?.length??0},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
     // #endregion
-    if (!session) {
+    if (!session?.token) {
       setError('請先登入學生帳號')
       return
     }
@@ -75,7 +75,7 @@ export default function PracticeSession({
       const res = await apiFetch(`/api/exercises/${exerciseId}/submit`, {
         method: 'POST',
         body: JSON.stringify({ answers: payload }),
-      }, { preferStudent: true })
+      }, { token: session.token })
       if (!res.ok) {
         // #region agent log
         fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PracticeSession:submitResponse',message:'submit failed',data:{status:res.status},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
@@ -89,6 +89,8 @@ export default function PracticeSession({
           msg = '伺服器未設定學生登入，請聯絡管理員'
         } else if (data.code === 'missing_token') {
           msg = '未帶登入憑證，請從首頁重新登入學生帳號'
+        } else if (data.code === 'student_required') {
+          msg = '請使用學生帳號登入後再交卷'
         } else if (res.status === 401) {
           msg = '登入已過期或未以學生身分登入，請從首頁重新登入學生帳號'
         } else {

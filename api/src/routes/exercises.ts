@@ -95,7 +95,7 @@ app.get('/exercises/:id', async (c) => {
 /** POST /api/exercises/:id/submit — 提交答案、評分、寫入 attempt */
 app.post('/exercises/:id/submit', async (c) => {
   const studentId = c.get('studentId')
-  if (!studentId) return c.json({ message: 'Student login required' }, 401)
+  if (!studentId) return c.json({ message: 'Student login required', code: 'student_required' }, 401)
   const id = c.req.param('id')
   const baseUrl = c.env.SUPABASE_URL
   const serviceKey = c.env.SUPABASE_SERVICE_ROLE_KEY
