@@ -1,10 +1,33 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { apiChatStream, apiFetch, getStudentSession } from '../../lib/api'
+import StrokeAnimator from '../../components/StrokeAnimator'
 
 type Message = { id: string; role: 'user' | 'assistant'; content: string }
 
 type ConversationSummary = { id: string; title: string | null; updated_at: string }
+
+function isCJK(c: string): boolean {
+  return /^[\u4e00-\u9fff]$/.test(c)
+}
+
+function renderContentWithStroke(content: string, onCharClick: (char: string) => void): ReactNode {
+  return Array.from(content).map((c, i) =>
+    isCJK(c) ? (
+      <button
+        key={`${i}-${c}`}
+        type="button"
+        onClick={() => onCharClick(c)}
+        className="underline decoration-amber-400 decoration-2 underline-offset-1 hover:bg-amber-100 rounded px-0.5 -mx-0.5 touch-manipulation"
+        title="看筆順"
+      >
+        {c}
+      </button>
+    ) : (
+      <span key={`${i}-${c}`}>{c}</span>
+    )
+  )
+}
 
 export default function Chat({ isStudent }: { isStudent?: boolean } = {}) {
   const [messages, setMessages] = useState<Message[]>([])
@@ -13,6 +36,7 @@ export default function Chat({ isStudent }: { isStudent?: boolean } = {}) {
   const [conversationId, setConversationId] = useState<string | null>(null)
   const [conversations, setConversations] = useState<ConversationSummary[]>([])
   const [showHistory, setShowHistory] = useState(false)
+  const [strokeChar, setStrokeChar] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -191,10 +215,25 @@ export default function Chat({ isStudent }: { isStudent?: boolean } = {}) {
                       : 'bg-white border border-amber-100 text-amber-900'
                   }`}
                 >
-                  {m.content || (m.role === 'assistant' && streaming ? '…' : '')}
+                  {m.role === 'assistant'
+                    ? renderContentWithStroke(m.content || (streaming ? '…' : ''), setStrokeChar)
+                    : m.content}
                 </div>
               </div>
             ))}
+            {strokeChar && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setStrokeChar(null)}>
+                <div className="bg-white rounded-2xl p-6 shadow-xl max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex justify-between items-center mb-4">
+                    <span className="text-lg font-medium text-amber-900">筆順：{strokeChar}</span>
+                    <button type="button" onClick={() => setStrokeChar(null)} className="text-amber-700 text-sm underline">關閉</button>
+                  </div>
+                  <div className="flex justify-center">
+                    <StrokeAnimator character={strokeChar} size={140} showOutline autoPlay />
+                  </div>
+                </div>
+              </div>
+            )}
             <div ref={bottomRef} />
           </div>
 

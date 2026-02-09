@@ -1,5 +1,6 @@
 {
   "dependencies": {
-    "aws4fetch": "^1.0.20"
+    "aws4fetch": "^1.0.20",
+    "hanzi-writer": "^3.7.3"
   }
 }

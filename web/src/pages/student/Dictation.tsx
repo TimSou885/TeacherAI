@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { apiFetch, getTtsUrl } from '../../lib/api'
 import AudioPlayer from '../../components/AudioPlayer'
+import StrokeAnimator from '../../components/StrokeAnimator'
+import StrokeQuiz from '../../components/StrokeQuiz'
 
 type DictationItem = { word: string; pinyin?: string; hint?: string }
 type ExerciseSummary = { id: string; title: string; category: string; created_at: string }
@@ -31,6 +33,8 @@ export default function Dictation() {
   const [ttsBlob, setTtsBlob] = useState(false)
   const [ttsError, setTtsError] = useState<string | null>(null)
   const [score, setScore] = useState({ correct: 0, total: 0 })
+  const [showStrokeForWord, setShowStrokeForWord] = useState<string | null>(null)
+  const [strokeQuizChar, setStrokeQuizChar] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -109,6 +113,8 @@ export default function Dictation() {
     setResult(null)
     setInput('')
     setTtsUrl(null)
+    setShowStrokeForWord(null)
+    setStrokeQuizChar(null)
     if (isLast) {
       setView('list')
       setSelected(null)
@@ -219,7 +225,74 @@ export default function Dictation() {
             <p className="text-green-600 font-medium mb-4">答對了！</p>
           )}
           {result === 'wrong' && (
-            <p className="text-red-600 font-medium mb-4">正確答案：{current.word}</p>
+            <div className="mb-4">
+              <p className="text-red-600 font-medium">正確答案：{current.word}</p>
+              <button
+                type="button"
+                onClick={() => setShowStrokeForWord(current.word)}
+                className="mt-2 min-h-[44px] px-4 py-2 rounded-xl bg-amber-100 text-amber-900 font-medium hover:bg-amber-200 touch-manipulation"
+              >
+                看筆順
+              </button>
+            </div>
+          )}
+
+          {showStrokeForWord && (
+            <div className="mb-6 p-4 bg-amber-50 rounded-2xl border border-amber-100">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-amber-900 font-medium">筆順：{showStrokeForWord}</span>
+                <button
+                  type="button"
+                  onClick={() => { setShowStrokeForWord(null); setStrokeQuizChar(null) }}
+                  className="text-amber-700 text-sm underline"
+                >
+                  關閉
+                </button>
+              </div>
+              {strokeQuizChar ? (
+                <div>
+                  <p className="text-amber-800 text-sm mb-2">依筆順描畫「{strokeQuizChar}」</p>
+                  <StrokeQuiz
+                    character={strokeQuizChar}
+                    size={140}
+                    showHintAfterMisses={3}
+                    onComplete={() => setStrokeQuizChar(null)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setStrokeQuizChar(null)}
+                    className="mt-3 min-h-[44px] px-4 rounded-xl bg-amber-100 text-amber-900 font-medium touch-manipulation"
+                  >
+                    返回筆順動畫
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="flex flex-wrap gap-6 justify-center">
+                    {Array.from(showStrokeForWord)
+                      .filter((c) => /[\u4e00-\u9fff]/.test(c))
+                      .map((c) => (
+                        <StrokeAnimator key={c} character={c} size={100} showOutline autoPlay />
+                      ))}
+                  </div>
+                  <p className="text-amber-800 text-sm mt-3">想練習寫這個字嗎？</p>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {Array.from(showStrokeForWord)
+                      .filter((c) => /[\u4e00-\u9fff]/.test(c))
+                      .map((c) => (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => setStrokeQuizChar(c)}
+                          className="min-h-[44px] min-w-[44px] rounded-xl bg-amber-200 text-amber-900 font-medium hover:bg-amber-300 touch-manipulation"
+                        >
+                          {c} 筆順測驗
+                        </button>
+                      ))}
+                  </div>
+                </>
+              )}
+            </div>
           )}
 
           <div className="flex gap-3">
