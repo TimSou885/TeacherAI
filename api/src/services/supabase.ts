@@ -249,6 +249,35 @@ export async function getExerciseById(
   return rows.length > 0 ? rows[0] : null
 }
 
+/** 寫入練習作答記錄 */
+export async function insertExerciseAttempt(
+  baseUrl: string,
+  serviceKey: string,
+  payload: {
+    exercise_id: string
+    student_id: string
+    answers: unknown
+    score: number
+    total_questions: number
+    correct_count: number
+  }
+) {
+  const url = `${baseUrl.replace(/\/$/, '')}/rest/v1/exercise_attempts`
+  const res = await supabaseFetch(url, serviceKey, {
+    method: 'POST',
+    body: JSON.stringify({
+      exercise_id: payload.exercise_id,
+      student_id: payload.student_id,
+      answers: payload.answers,
+      score: payload.score,
+      total_questions: payload.total_questions,
+      correct_count: payload.correct_count,
+    }),
+    headers: { Prefer: 'return=minimal' },
+  })
+  if (!res.ok) throw new Error(`Supabase: ${await res.text()}`)
+}
+
 /** 寫入 embeddings_log（RAG 嵌入追蹤） */
 export async function createEmbeddingLog(
   baseUrl: string,

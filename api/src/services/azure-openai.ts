@@ -102,6 +102,34 @@ export async function chatStream(
   })
 }
 
+/** 單次 completion（非串流），用於簡答題評分等 */
+export async function chatComplete(
+  endpoint: string,
+  apiKey: string,
+  messages: ChatMessage[],
+  options?: { max_tokens?: number }
+): Promise<string> {
+  const url = `${endpoint.replace(/\/$/, '')}/openai/deployments/${DEPLOYMENT_CHAT}/chat/completions?api-version=${API_VERSION}`
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'api-key': apiKey,
+    },
+    body: JSON.stringify({
+      messages,
+      stream: false,
+      max_tokens: options?.max_tokens ?? 512,
+    }),
+  })
+  if (!res.ok) {
+    const err = await res.text()
+    throw new Error(`Azure OpenAI: ${res.status} ${err}`)
+  }
+  const data = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> }
+  return data.choices?.[0]?.message?.content?.trim() ?? ''
+}
+
 export function parseAzureStream(
   stream: ReadableStream<Uint8Array>,
   onContent: (delta: string) => void

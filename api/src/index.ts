@@ -6,6 +6,7 @@ import { chatRoutes } from './routes/chat'
 import { conversationRoutes } from './routes/conversations'
 import { ttsRoutes } from './routes/tts'
 import { exerciseRoutes } from './routes/exercises'
+import { scoreRoutes } from './routes/score'
 import { adminEmbedRoutes } from './routes/admin-embed'
 
 export type Env = {
@@ -69,9 +70,11 @@ app.route('/api', ttsRoutes)
 app.use('/api/chat', authMiddleware)
 app.use('/api/conversations', authMiddleware)
 app.use('/api/exercises', authMiddleware)
+app.use('/api/score', authMiddleware)
 app.route('/api', chatRoutes)
 app.route('/api', conversationRoutes)
 app.route('/api', exerciseRoutes)
+app.route('/api', scoreRoutes)
 app.route('/api/admin', adminEmbedRoutes)
 
 export default app

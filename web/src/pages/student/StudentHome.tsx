@@ -4,6 +4,8 @@ import { getStudentSession, clearStudentSession } from '../../lib/api'
 import Chat from './Chat'
 import Dictation from './Dictation'
 import StrokePractice from './StrokePractice'
+import Practice from './Practice'
+import PracticeSession from './PracticeSession'
 
 const tabs = [
   { path: 'chat', label: '對話', icon: '💬' },
@@ -67,10 +69,27 @@ export function StudentChatTab() {
 const practiceCategories = [
   { id: 'dictation' as const, label: '默書' },
   { id: 'stroke' as const, label: '筆順測驗' },
+  { id: 'quiz' as const, label: '測驗' },
 ]
 
 export function StudentPracticeTab() {
-  const [practiceCategory, setPracticeCategory] = useState<'dictation' | 'stroke'>('dictation')
+  const [practiceCategory, setPracticeCategory] = useState<'dictation' | 'stroke' | 'quiz'>('dictation')
+  const [quizExercise, setQuizExercise] = useState<{ id: string; title: string } | null>(null)
+
+  const content =
+    practiceCategory === 'dictation' ? (
+      <Dictation />
+    ) : practiceCategory === 'stroke' ? (
+      <StrokePractice />
+    ) : quizExercise ? (
+      <PracticeSession
+        exerciseId={quizExercise.id}
+        title={quizExercise.title}
+        onBack={() => setQuizExercise(null)}
+      />
+    ) : (
+      <Practice onSelectExercise={(id, title) => setQuizExercise({ id, title })} />
+    )
 
   return (
     <div className="flex-1 overflow-hidden flex flex-col min-h-0">
@@ -81,7 +100,10 @@ export function StudentPracticeTab() {
             type="button"
             role="tab"
             aria-selected={practiceCategory === cat.id}
-            onClick={() => setPracticeCategory(cat.id)}
+            onClick={() => {
+              setPracticeCategory(cat.id)
+              if (cat.id !== 'quiz') setQuizExercise(null)
+            }}
             className={`min-h-[44px] flex-1 px-4 rounded-xl font-medium touch-manipulation transition ${
               practiceCategory === cat.id
                 ? 'bg-amber-500 text-white'
@@ -93,7 +115,7 @@ export function StudentPracticeTab() {
         ))}
       </div>
       <div className="flex-1 overflow-hidden flex flex-col min-h-0">
-        {practiceCategory === 'dictation' ? <Dictation /> : <StrokePractice />}
+        {content}
       </div>
     </div>
   )
