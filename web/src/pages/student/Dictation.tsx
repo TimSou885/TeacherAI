@@ -183,10 +183,11 @@ export default function Dictation() {
 
           <div className="bg-white rounded-2xl border border-amber-100 p-6 mb-6">
             {mode === 'listen' && (
-              <div className="flex items-center gap-4 mb-4">
+              <div className="flex items-center gap-4 mb-4 flex-wrap">
                 <AudioPlayer
                   src={ttsLoading ? null : ttsUrl}
                   isBlob={ttsBlob}
+                  onError={() => setTtsError('播放失敗，請檢查網路或稍後再試')}
                   className="shrink-0"
                 />
                 {ttsLoading && <span className="text-amber-600">準備播放…</span>}

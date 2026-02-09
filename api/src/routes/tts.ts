@@ -68,10 +68,16 @@ app.get('/tts/play', async (c) => {
   if (!r2) return c.json({ message: 'TTS storage not configured' }, 503)
   const obj = await r2.get(key)
   if (!obj) return c.json({ message: 'Not found' }, 404)
+  const origin = c.req.header('Origin') ?? ''
+  const allowed =
+    origin === 'http://localhost:5173' ||
+    origin === 'https://eduspark.pages.dev' ||
+    origin === 'https://teacherai.pages.dev'
   return new Response(obj.body, {
     headers: {
       'Content-Type': 'audio/mpeg',
       'Cache-Control': 'public, max-age=31536000',
+      ...(allowed ? { 'Access-Control-Allow-Origin': origin } : {}),
     },
   })
 })
