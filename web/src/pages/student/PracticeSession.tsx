@@ -81,9 +81,14 @@ export default function PracticeSession({
         fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PracticeSession:submitResponse',message:'submit failed',data:{status:res.status},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
         // #endregion
         const data = (await res.json().catch(() => ({}))) as { message?: string; code?: string }
+        if (res.status === 401) {
+          console.warn('[submit] 401', data.code, data.message)
+        }
         let msg: string
         if (data.code === 'student_auth_not_configured' || res.status === 503) {
           msg = '伺服器未設定學生登入，請聯絡管理員'
+        } else if (data.code === 'missing_token') {
+          msg = '未帶登入憑證，請從首頁重新登入學生帳號'
         } else if (res.status === 401) {
           msg = '登入已過期或未以學生身分登入，請從首頁重新登入學生帳號'
         } else {

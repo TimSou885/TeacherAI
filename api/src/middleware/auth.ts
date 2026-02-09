@@ -21,6 +21,7 @@ export const authMiddleware = createMiddleware<{ Bindings: Env; Variables: AuthV
     const auth = c.req.header('Authorization')
     const token = auth?.startsWith('Bearer ') ? auth.slice(7) : null
     if (!token) {
+      console.log('[auth] 401 missing_token path=' + c.req.path)
       return c.json({ message: 'Unauthorized', code: 'missing_token' }, 401)
     }
     const supabaseUrl = c.env.SUPABASE_URL
@@ -43,6 +44,7 @@ export const authMiddleware = createMiddleware<{ Bindings: Env; Variables: AuthV
     // 2. 嘗試學生 JWT
     const studentSecret = c.env.STUDENT_JWT_SECRET
     if (!studentSecret) {
+      console.log('[auth] 503 student_auth_not_configured path=' + c.req.path)
       return c.json({
         message: 'Student auth not configured on server',
         code: 'student_auth_not_configured',
@@ -58,6 +60,7 @@ export const authMiddleware = createMiddleware<{ Bindings: Env; Variables: AuthV
       await next()
       return
     }
+    console.log('[auth] 401 jwt_verify_failed path=' + c.req.path)
     return c.json({
       message: 'Invalid or expired token',
       code: 'jwt_verify_failed',
