@@ -157,7 +157,9 @@ export async function getTtsUrl(
   })
   if (!res.ok) {
     const err = (await res.json().catch(() => ({}))) as { message?: string }
-    throw new Error(err?.message ?? `TTS ${res.status}`)
+    const msg = err?.message ?? `TTS ${res.status}`
+    console.error('[TTS]', res.status, msg)
+    throw new Error(msg)
   }
   const contentType = res.headers.get('Content-Type') ?? ''
   if (contentType.includes('application/json')) {
