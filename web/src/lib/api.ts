@@ -136,3 +136,32 @@ export async function apiChatStream(
   }
   if (onDone && conversationId) onDone(conversationId)
 }
+
+/** 取得 TTS 播放 URL（POST /api/tts）。回傳可作為 <audio src> 的 URL（含 R2 或 blob）。 */
+export async function getTtsUrl(
+  text: string,
+  options?: { preferStudent?: boolean; speed?: 'slow' | 'medium' }
+): Promise<string> {
+  const token = await getToken(options?.preferStudent)
+  const url = `${API_URL}/api/tts`
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ text: text.trim(), speed: options?.speed ?? 'medium' }),
+  })
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { message?: string }
+    throw new Error(err?.message ?? `TTS ${res.status}`)
+  }
+  const contentType = res.headers.get('Content-Type') ?? ''
+  if (contentType.includes('application/json')) {
+    const data = (await res.json()) as { url?: string }
+    if (!data?.url) throw new Error('TTS returned no url')
+    return data.url.startsWith('http') ? data.url : `${API_URL.replace(/\/$/, '')}${data.url.startsWith('/') ? '' : '/'}${data.url}`
+  }
+  const blob = await res.blob()
+  return URL.createObjectURL(blob)
+}

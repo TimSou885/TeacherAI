@@ -1,6 +1,7 @@
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { getStudentSession, clearStudentSession } from '../../lib/api'
 import Chat from './Chat'
+import Dictation from './Dictation'
 
 const tabs = [
   { path: 'chat', label: '對話', icon: '💬' },
@@ -63,9 +64,8 @@ export function StudentChatTab() {
 
 export function StudentPracticeTab() {
   return (
-    <div className="flex-1 overflow-auto p-6 flex flex-col items-center justify-center text-amber-800">
-      <p className="text-lg font-medium">練習</p>
-      <p className="text-sm mt-2">即將推出：默書、閱讀理解、語文基礎等練習</p>
+    <div className="flex-1 overflow-auto flex flex-col min-h-0">
+      <Dictation />
     </div>
   )
 }

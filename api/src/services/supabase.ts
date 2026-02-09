@@ -200,6 +200,55 @@ export async function getStudentInClass(
   return rows.length > 0 ? rows[0] : null
 }
 
+/** 依 class_id 列出練習（可選 category，如 dictation） */
+export async function listExercises(
+  baseUrl: string,
+  serviceKey: string,
+  classId: string,
+  options?: { category?: string }
+) {
+  let url = `${baseUrl.replace(/\/$/, '')}/rest/v1/exercises?class_id=eq.${classId}&is_active=eq.true&order=created_at.desc&select=id,title,category,grade_level,created_at`
+  if (options?.category) {
+    url += `&category=eq.${encodeURIComponent(options.category)}`
+  }
+  const res = await supabaseFetch(url, serviceKey)
+  if (!res.ok) throw new Error(`Supabase: ${await res.text()}`)
+  return (await res.json()) as Array<{
+    id: string
+    title: string
+    category: string
+    grade_level: number | null
+    created_at: string
+  }>
+}
+
+/** 取得單一練習（含 questions） */
+export async function getExerciseById(
+  baseUrl: string,
+  serviceKey: string,
+  exerciseId: string
+): Promise<{
+  id: string
+  class_id: string
+  title: string
+  category: string
+  questions: unknown
+  grade_level: number | null
+} | null> {
+  const url = `${baseUrl.replace(/\/$/, '')}/rest/v1/exercises?id=eq.${exerciseId}&select=id,class_id,title,category,questions,grade_level`
+  const res = await supabaseFetch(url, serviceKey)
+  if (!res.ok) throw new Error(`Supabase: ${await res.text()}`)
+  const rows = (await res.json()) as Array<{
+    id: string
+    class_id: string
+    title: string
+    category: string
+    questions: unknown
+    grade_level: number | null
+  }>
+  return rows.length > 0 ? rows[0] : null
+}
+
 /** 寫入 embeddings_log（RAG 嵌入追蹤） */
 export async function createEmbeddingLog(
   baseUrl: string,

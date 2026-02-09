@@ -7,6 +7,7 @@ export type AuthVariables = {
   userId: string
   /** 學生登入時為 student_id；老師登入時為 undefined */
   studentId?: string
+  classId?: string
   studentName?: string
   studentGradeLevel?: number
 }
@@ -46,6 +47,7 @@ export const authMiddleware = createMiddleware<{ Bindings: Env; Variables: AuthV
       if (studentPayload) {
         c.set('userId', studentPayload.sub)
         c.set('studentId', studentPayload.sub)
+        c.set('classId', studentPayload.class_id)
         c.set('studentName', studentPayload.name)
         c.set('studentGradeLevel', studentPayload.grade_level)
         await next()

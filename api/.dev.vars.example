@@ -5,3 +5,7 @@ SUPABASE_JWT_SECRET=your-jwt-secret-from-supabase-api-settings
 STUDENT_JWT_SECRET=your-random-secret-for-student-tokens-min-32-chars
 AZURE_OPENAI_API_KEY=your-azure-openai-key
 AZURE_OPENAI_ENDPOINT=https://xxx.openai.azure.com
+# 默書 TTS（Phase 1）：Amazon Polly
+AWS_ACCESS_KEY_ID=your-aws-access-key
+AWS_SECRET_ACCESS_KEY=your-aws-secret-key
+AWS_REGION=ap-east-1

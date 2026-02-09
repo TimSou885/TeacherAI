@@ -17,6 +17,11 @@ SUPABASE_URL = "https://gjeavzfghdjlnmkyenym.supabase.co"
 # binding = "CACHE"
 # id = ""
 
+# TTS 音頻快取（Phase 1 默書）：先建立 bucket → npx wrangler r2 bucket create teacherai-tts
+[[r2_buckets]]
+binding = "R2_TTS"
+bucket_name = "teacherai-tts"
+
 # RAG：請先執行一次：npx wrangler vectorize create teacherai-embeddings --dimensions=1536 --metric=cosine
 # 並設定 secret：npx wrangler secret put ADMIN_EMBED_SECRET
 [[vectorize]]

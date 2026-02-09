@@ -4,6 +4,8 @@ import { authMiddleware } from './middleware/auth'
 import { authRoutes } from './routes/auth'
 import { chatRoutes } from './routes/chat'
 import { conversationRoutes } from './routes/conversations'
+import { ttsRoutes } from './routes/tts'
+import { exerciseRoutes } from './routes/exercises'
 import { adminEmbedRoutes } from './routes/admin-embed'
 
 export type Env = {
@@ -14,10 +16,28 @@ export type Env = {
   AZURE_OPENAI_ENDPOINT: string
   /** 學生 JWT 簽名用（Phase 1 學生登入） */
   STUDENT_JWT_SECRET?: string
+  /** Polly 語音：AWS 金鑰與區域（Phase 1 默書） */
+  AWS_ACCESS_KEY_ID?: string
+  AWS_SECRET_ACCESS_KEY?: string
+  AWS_REGION?: string
+  /** R2 快取 TTS 音頻（Phase 1），binding 名稱 R2_TTS */
+  R2_TTS?: R2Bucket
   /** RAG：Vectorize index（1536 維、cosine），可選 */
   VECTORIZE?: { query: (v: number[], o?: { topK?: number; returnMetadata?: boolean }) => Promise<{ matches?: Array<{ id: string; score: number; metadata?: Record<string, unknown> }> }>; insert: (v: Array<{ id: string; values: number[]; metadata?: Record<string, string> }>) => Promise<unknown> }
   /** 嵌入腳本用：POST /api/admin/embed 時帶此 secret，可選 */
   ADMIN_EMBED_SECRET?: string
+}
+
+interface R2Bucket {
+  get(key: string): Promise<R2ObjectBody | null>
+  put(key: string, value: ArrayBuffer | ReadableStream, options?: R2PutOptions): Promise<void>
+}
+interface R2ObjectBody {
+  arrayBuffer(): Promise<ArrayBuffer>
+  body: ReadableStream
+}
+interface R2PutOptions {
+  httpMetadata?: { contentType?: string }
 }
 
 const app = new Hono<{ Bindings: Env }>()
@@ -40,10 +60,18 @@ app.get('/', (c) => c.json({ name: 'eduspark-api', status: 'ok' }))
 
 app.route('/api/auth', authRoutes)
 
+app.use('/api/tts', async (c, next) => {
+  if (c.req.method === 'POST') return authMiddleware(c, next)
+  return next()
+})
+app.route('/api', ttsRoutes)
+
 app.use('/api/chat', authMiddleware)
 app.use('/api/conversations', authMiddleware)
+app.use('/api/exercises', authMiddleware)
 app.route('/api', chatRoutes)
 app.route('/api', conversationRoutes)
+app.route('/api', exerciseRoutes)
 app.route('/api/admin', adminEmbedRoutes)
 
 export default app
