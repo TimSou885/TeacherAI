@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { getStudentSession, clearStudentSession } from '../../lib/api'
 import Chat from './Chat'
 import Dictation from './Dictation'
+import StrokePractice from './StrokePractice'
 
 const tabs = [
   { path: 'chat', label: '對話', icon: '💬' },
@@ -62,10 +64,37 @@ export function StudentChatTab() {
   return <Chat isStudent />
 }
 
+const practiceCategories = [
+  { id: 'dictation' as const, label: '默書' },
+  { id: 'stroke' as const, label: '筆順測驗' },
+]
+
 export function StudentPracticeTab() {
+  const [practiceCategory, setPracticeCategory] = useState<'dictation' | 'stroke'>('dictation')
+
   return (
-    <div className="flex-1 overflow-auto flex flex-col min-h-0">
-      <Dictation />
+    <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+      <div className="flex gap-2 p-4 bg-white border-b border-amber-100 shrink-0">
+        {practiceCategories.map((cat) => (
+          <button
+            key={cat.id}
+            type="button"
+            role="tab"
+            aria-selected={practiceCategory === cat.id}
+            onClick={() => setPracticeCategory(cat.id)}
+            className={`min-h-[44px] flex-1 px-4 rounded-xl font-medium touch-manipulation transition ${
+              practiceCategory === cat.id
+                ? 'bg-amber-500 text-white'
+                : 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+            }`}
+          >
+            {cat.label}
+          </button>
+        ))}
+      </div>
+      <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+        {practiceCategory === 'dictation' ? <Dictation /> : <StrokePractice />}
+      </div>
     </div>
   )
 }
