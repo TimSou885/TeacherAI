@@ -54,7 +54,11 @@ export default function PracticeSession({
   }
 
   async function handleSubmit() {
-    if (!getStudentSession()) {
+    const session = getStudentSession()
+    // #region agent log
+    fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PracticeSession:handleSubmit',message:'before submit',data:{hasSession:!!session,tokenLen:session?.token?.length??0},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+    // #endregion
+    if (!session) {
       setError('請先登入學生帳號')
       return
     }
@@ -73,6 +77,9 @@ export default function PracticeSession({
         body: JSON.stringify({ answers: payload }),
       }, { preferStudent: true })
       if (!res.ok) {
+        // #region agent log
+        fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PracticeSession:submitResponse',message:'submit failed',data:{status:res.status},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
+        // #endregion
         const data = (await res.json().catch(() => ({}))) as { message?: string }
         const msg = res.status === 401
           ? '登入已過期或未以學生身分登入，請從首頁重新登入學生帳號'
