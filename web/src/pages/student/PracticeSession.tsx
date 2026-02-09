@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { apiFetch } from '../../lib/api'
+import { apiFetch, getStudentSession } from '../../lib/api'
 
 type Question =
   | { type: 'multiple_choice' | 'choice'; question: string; options?: string[]; correct?: number }
@@ -54,6 +54,10 @@ export default function PracticeSession({
   }
 
   async function handleSubmit() {
+    if (!getStudentSession()) {
+      setError('請先登入學生帳號')
+      return
+    }
     const payload = questions.map((q, questionIndex) => {
       let value = answers[questionIndex]
       if ((q.type === 'reorder' || q.type === 'order') && (!Array.isArray(value) || value.length !== (q.sentences?.length ?? 0))) {
@@ -62,6 +66,7 @@ export default function PracticeSession({
       return { questionIndex, value: value ?? '' }
     })
     setSubmitting(true)
+    setError('')
     try {
       const res = await apiFetch(`/api/exercises/${exerciseId}/submit`, {
         method: 'POST',
@@ -69,7 +74,10 @@ export default function PracticeSession({
       }, { preferStudent: true })
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { message?: string }
-        throw new Error(data.message ?? `提交失敗 ${res.status}`)
+        const msg = res.status === 401
+          ? '登入已過期或未以學生身分登入，請從首頁重新登入學生帳號'
+          : (data.message ?? `提交失敗 ${res.status}`)
+        throw new Error(msg)
       }
       const data = (await res.json()) as { results?: SubmitResult[] }
       setSubmitted(data.results ?? [])
