@@ -269,10 +269,6 @@ function ReorderQuestion({
 }) {
   const sentences = question.sentences ?? []
   const currentOrder = (Array.isArray(value) ? value : []) as number[]
-  const ensureOrder = () => {
-    if (currentOrder.length === sentences.length) return currentOrder
-    return sentences.map((_, i) => i)
-  }
   const order = currentOrder.length === sentences.length ? currentOrder : sentences.map((_, i) => i)
 
   function move(from: number, delta: number) {
