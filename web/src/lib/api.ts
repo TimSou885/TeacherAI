@@ -142,6 +142,9 @@ export async function getTtsUrl(
   text: string,
   options?: { preferStudent?: boolean; speed?: 'slow' | 'medium' }
 ): Promise<string> {
+  if (!API_URL) {
+    throw new Error('未設定 API 網址（正式環境請在 Cloudflare Pages 設定 VITE_API_URL 為 Workers 網址）')
+  }
   const token = await getToken(options?.preferStudent)
   const url = `${API_URL}/api/tts`
   const res = await fetch(url, {

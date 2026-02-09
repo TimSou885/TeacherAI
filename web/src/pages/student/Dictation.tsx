@@ -29,6 +29,7 @@ export default function Dictation() {
   const [ttsUrl, setTtsUrl] = useState<string | null>(null)
   const [ttsLoading, setTtsLoading] = useState(false)
   const [ttsBlob, setTtsBlob] = useState(false)
+  const [ttsError, setTtsError] = useState<string | null>(null)
   const [score, setScore] = useState({ correct: 0, total: 0 })
 
   useEffect(() => {
@@ -80,13 +81,17 @@ export default function Dictation() {
   useEffect(() => {
     if (!current || mode !== 'listen') return
     setTtsUrl(null)
+    setTtsError(null)
     setTtsLoading(true)
     getTtsUrl(current.word, { preferStudent: true })
       .then((url) => {
         setTtsUrl(url)
         setTtsBlob(url.startsWith('blob:'))
       })
-      .catch(() => setTtsUrl(null))
+      .catch((e) => {
+        setTtsUrl(null)
+        setTtsError(e instanceof Error ? e.message : '無法載入語音')
+      })
       .finally(() => setTtsLoading(false))
   }, [current?.word, mode])
 
@@ -185,6 +190,11 @@ export default function Dictation() {
                   className="shrink-0"
                 />
                 {ttsLoading && <span className="text-amber-600">準備播放…</span>}
+                {ttsError && (
+                  <span className="text-red-600 text-sm" role="alert">
+                    {ttsError}
+                  </span>
+                )}
               </div>
             )}
             {mode === 'hint' && current.hint && (
