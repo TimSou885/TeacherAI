@@ -42,17 +42,21 @@ export const authMiddleware = createMiddleware<{ Bindings: Env; Variables: AuthV
     }
     // 2. 嘗試學生 JWT
     const studentSecret = c.env.STUDENT_JWT_SECRET
-    if (studentSecret) {
-      const studentPayload = await verifyStudentJwt(studentSecret, token)
-      if (studentPayload) {
-        c.set('userId', studentPayload.sub)
-        c.set('studentId', studentPayload.sub)
-        c.set('classId', studentPayload.class_id)
-        c.set('studentName', studentPayload.name)
-        c.set('studentGradeLevel', studentPayload.grade_level)
-        await next()
-        return
-      }
+    if (!studentSecret) {
+      return c.json({
+        message: 'Student auth not configured on server',
+        code: 'student_auth_not_configured',
+      }, 503)
+    }
+    const studentPayload = await verifyStudentJwt(studentSecret, token)
+    if (studentPayload) {
+      c.set('userId', studentPayload.sub)
+      c.set('studentId', studentPayload.sub)
+      c.set('classId', studentPayload.class_id)
+      c.set('studentName', studentPayload.name)
+      c.set('studentGradeLevel', studentPayload.grade_level)
+      await next()
+      return
     }
     return c.json({
       message: 'Invalid or expired token',
