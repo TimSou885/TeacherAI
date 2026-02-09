@@ -187,6 +187,7 @@ export default function Dictation() {
                 <AudioPlayer
                   src={ttsLoading ? null : ttsUrl}
                   isBlob={ttsBlob}
+                  autoPlay
                   onError={() => setTtsError('播放失敗，請檢查網路或稍後再試')}
                   className="shrink-0"
                 />

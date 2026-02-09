@@ -5,12 +5,14 @@ type Props = {
   src: string | null
   /** 是否為 blob URL（組件卸載時需 revoke） */
   isBlob?: boolean
+  /** 載入後自動播放一次（如聽寫模式） */
+  autoPlay?: boolean
   onEnded?: () => void
   onError?: () => void
   className?: string
 }
 
-export default function AudioPlayer({ src, isBlob, onEnded, onError, className }: Props) {
+export default function AudioPlayer({ src, isBlob, autoPlay, onEnded, onError, className }: Props) {
   const ref = useRef<HTMLAudioElement>(null)
   const [playing, setPlaying] = useState(false)
 
@@ -29,12 +31,19 @@ export default function AudioPlayer({ src, isBlob, onEnded, onError, className }
     }
     el.addEventListener('ended', end)
     el.addEventListener('error', err)
+    const tryAutoPlay = () => {
+      if (!autoPlay) return
+      el.play().then(() => setPlaying(true)).catch(() => { /* 瀏覽器阻擋時不報錯 */ })
+    }
+    if (el.readyState >= 3) tryAutoPlay()
+    else el.addEventListener('canplaythrough', tryAutoPlay, { once: true })
     return () => {
       el.removeEventListener('ended', end)
       el.removeEventListener('error', err)
+      el.removeEventListener('canplaythrough', tryAutoPlay)
       if (isBlob) URL.revokeObjectURL(src)
     }
-  }, [src, isBlob, onEnded, onError])
+  }, [src, isBlob, autoPlay, onEnded, onError])
 
   function play() {
     if (!ref.current || !src) return
