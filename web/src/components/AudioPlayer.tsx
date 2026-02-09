@@ -20,6 +20,9 @@ export default function AudioPlayer({ src, isBlob, autoPlay, onEnded, onError, c
     if (!src) return
     const el = ref.current
     if (!el) return
+    // #region agent log
+    fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AudioPlayer.tsx:effect',message:'effect run',data:{hasSrc:!!src,autoPlay,srcLen:typeof src==='string'?src.length:0},timestamp:Date.now(),hypothesisId:'H1_H3_H5'})}).catch(()=>{});
+    // #endregion
     el.src = src
     const end = () => {
       setPlaying(false)
@@ -33,6 +36,9 @@ export default function AudioPlayer({ src, isBlob, autoPlay, onEnded, onError, c
     el.addEventListener('error', err)
     const tryAutoPlay = () => {
       if (!autoPlay) return
+      // #region agent log
+      fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AudioPlayer.tsx:tryAutoPlay',message:'calling play()',data:{readyState:el.readyState},timestamp:Date.now(),hypothesisId:'H1_H3'})}).catch(()=>{});
+      // #endregion
       el.play().then(() => setPlaying(true)).catch(() => { /* 瀏覽器阻擋時不報錯 */ })
     }
     if (el.readyState >= 3) tryAutoPlay()
