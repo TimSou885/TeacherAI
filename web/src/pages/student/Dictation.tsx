@@ -84,9 +84,6 @@ export default function Dictation() {
 
   useEffect(() => {
     if (!current || mode !== 'listen') return
-    // #region agent log
-    fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Dictation.tsx:ttsEffect',message:'TTS effect run',data:{word:current?.word,mode},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
-    // #endregion
     setTtsUrl(null)
     setTtsError(null)
     setTtsLoading(true)

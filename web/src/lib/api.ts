@@ -16,6 +16,10 @@ export function getStudentSession(): StudentSession | null {
     if (!raw) return null
     const data = JSON.parse(raw) as StudentSession
     if (!data?.token || !data?.student?.id) return null
+    if (!isStudentToken(data.token)) {
+      clearStudentSession()
+      return null
+    }
     return data
   } catch {
     return null
@@ -28,6 +32,26 @@ export function setStudentSession(session: StudentSession): void {
 
 export function clearStudentSession(): void {
   localStorage.removeItem(STUDENT_STORAGE_KEY)
+}
+
+const STUDENT_JWT_ISSUER = 'eduspark-student'
+
+/** 不解簽，只解 payload 取 issuer（除錯用） */
+export function getJwtIssuer(token: string | null | undefined): string | null {
+  if (!token) return null
+  try {
+    const parts = token.split('.')
+    if (parts.length !== 3) return null
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'))) as { iss?: string }
+    return payload.iss ?? null
+  } catch {
+    return null
+  }
+}
+
+/** 不解簽，只解 payload 檢查 issuer，避免把老師 token 當學生用 */
+export function isStudentToken(token: string | null | undefined): boolean {
+  return getJwtIssuer(token) === STUDENT_JWT_ISSUER
 }
 
 /** 學生情境（如 /student/home、測驗交卷）下傳 true，只帶學生 token，絕不帶老師 token */
@@ -47,7 +71,8 @@ export async function apiFetch(
   init?: RequestInit,
   options?: { preferStudent?: boolean; /** 若提供則強制使用此 token（用於交卷等必須為學生 token 的請求） */ token?: string | null }
 ): Promise<Response> {
-  const token = options?.token !== undefined ? options.token : await getToken(options?.preferStudent)
+  const useExplicit = options?.token !== undefined
+  const token = useExplicit ? options.token : await getToken(options?.preferStudent)
   const url = path.startsWith('http') ? path : `${API_URL}${path}`
   const headers = new Headers(init?.headers)
   if (token) headers.set('Authorization', `Bearer ${token}`)
@@ -62,9 +87,6 @@ export async function apiChatStream(
   options?: { preferStudent?: boolean }
 ): Promise<void> {
   const token = await getToken(options?.preferStudent)
-  // #region agent log
-  fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:apiChatStream',message:'before chat request',data:{hasToken:!!token,tokenLength:token?.length ?? 0,apiUrl:API_URL || '(empty)'},timestamp:Date.now(),hypothesisId:'H1_H2'})}).catch(()=>{});
-  // #endregion
   const url = `${API_URL}/api/chat`
   const res = await fetch(url, {
     method: 'POST',
@@ -76,22 +98,12 @@ export async function apiChatStream(
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({})) as { message?: string; detail?: string }
-    // #region agent log
-    fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:chatError',message:'chat API error response',data:{status:res.status,message:err?.message,detail:err?.detail},timestamp:Date.now(),hypothesisId:'H3_H4_H5'})}).catch(()=>{});
-    // #endregion
     throw new Error(err?.message ?? `HTTP ${res.status}`)
   }
-  // #region agent log
-  const resBody = res.body
-  const bodyHasGetReader = resBody && typeof (resBody as { getReader?: unknown }).getReader === 'function'
-  fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:beforeGetReader',message:'response body check',data:{hasBody:!!resBody,bodyHasGetReader,ok:res.ok},timestamp:Date.now(),hypothesisId:'frontendStream'})}).catch(()=>{});
-  // #endregion
   let reader: ReadableStreamDefaultReader<Uint8Array> | null = null
   try {
     reader = res.body?.getReader() ?? null
   } catch (e) {
-    const err = e as Error
-    fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:getReaderThrow',message:'getReader failed',data:{errorMessage:err?.message},timestamp:Date.now(),hypothesisId:'frontendStream'})}).catch(()=>{});
     throw e
   }
   if (!reader) throw new Error('No response body')

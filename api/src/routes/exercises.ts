@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import * as supabase from '../services/supabase'
 import { chatComplete } from '../services/azure-openai'
+import { verifyStudentJwt } from '../services/student-jwt'
 import type { Env } from '../index'
 import type { AuthVariables } from '../middleware/auth'
 
@@ -94,7 +95,16 @@ app.get('/exercises/:id', async (c) => {
 
 /** POST /api/exercises/:id/submit — 提交答案、評分、寫入 attempt */
 app.post('/exercises/:id/submit', async (c) => {
-  const studentId = c.get('studentId')
+  let studentId = c.get('studentId')
+  if (!studentId) {
+    const secret = c.env.STUDENT_JWT_SECRET
+    const auth = c.req.header('Authorization')
+    const token = auth?.startsWith('Bearer ') ? auth.slice(7) : null
+    if (secret && token) {
+      const payload = await verifyStudentJwt(secret, token)
+      if (payload) studentId = payload.sub
+    }
+  }
   if (!studentId) return c.json({ message: 'Student login required', code: 'student_required' }, 401)
   const id = c.req.param('id')
   const baseUrl = c.env.SUPABASE_URL
@@ -164,6 +174,40 @@ app.post('/exercises/:id/submit', async (c) => {
     total_questions: totalQuestions,
     correct_count: correctCount,
   })
+
+  // 答錯寫入錯題本（第 18-19 週）
+  const subject = (exercise as { subject?: string }).subject ?? 'chinese'
+  const category = (exercise as { category?: string }).category ?? 'quiz'
+  for (let i = 0; i < results.length; i++) {
+    const r = results[i]
+    if (!r.isCorrect) {
+      const q = questions[i] as Question
+      const ans = answers.find((a) => a.questionIndex === i)
+      const studentValue = ans?.value
+      const errorContent: Record<string, unknown> = {
+        question: (q as { question?: string }).question ?? (q as { word?: string }).word ?? `第 ${i + 1} 題`,
+        correct_answer: (q as { correct?: unknown }).correct ?? (q as { reference_answer?: string }).reference_answer,
+        student_answer: studentValue,
+        question_type: q.type,
+        question_data: q,
+      }
+      if (r.correctAnswer != null) errorContent.correctAnswer = r.correctAnswer
+      if (r.feedback != null) errorContent.feedback = r.feedback
+      try {
+        await supabase.upsertErrorBook(baseUrl, serviceKey, {
+          student_id: studentId,
+          exercise_id: id,
+          subject,
+          category,
+          question_index: i,
+          error_content: errorContent,
+        })
+      } catch (e) {
+        console.error('error_book upsert failed:', e)
+      }
+    }
+  }
+
   return c.json({
     score,
     totalQuestions,

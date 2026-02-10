@@ -21,14 +21,35 @@ export const authMiddleware = createMiddleware<{ Bindings: Env; Variables: AuthV
     const auth = c.req.header('Authorization')
     const token = auth?.startsWith('Bearer ') ? auth.slice(7) : null
     if (!token) {
-      console.log('[auth] 401 missing_token path=' + c.req.path)
       return c.json({ message: 'Unauthorized', code: 'missing_token' }, 401)
     }
     const supabaseUrl = c.env.SUPABASE_URL
     if (!supabaseUrl) {
       return c.json({ message: 'Server config error' }, 500)
     }
-    // 1. 嘗試 Supabase JWT（老師）
+    // 1. 先嘗試學生 JWT（避免學生 token 被 Supabase 路徑誤接受）
+    const studentSecret = c.env.STUDENT_JWT_SECRET
+    if (studentSecret) {
+      const studentPayload = await verifyStudentJwt(studentSecret, token)
+      if (studentPayload) {
+        c.set('userId', studentPayload.sub)
+        c.set('studentId', studentPayload.sub)
+        c.set('classId', studentPayload.class_id)
+        c.set('studentName', studentPayload.name)
+        c.set('studentGradeLevel', studentPayload.grade_level)
+        await next()
+        return
+      }
+    } else {
+      const isSubmit = c.req.path.includes('/submit')
+      if (isSubmit) {
+        return c.json({
+          message: 'Student auth not configured on server',
+          code: 'student_auth_not_configured',
+        }, 503)
+      }
+    }
+    // 2. 再嘗試 Supabase JWT（老師）
     try {
       const jwks = getJwks(supabaseUrl)
       const { payload } = await jwtVerify(token, jwks)
@@ -39,28 +60,14 @@ export const authMiddleware = createMiddleware<{ Bindings: Env; Variables: AuthV
         return
       }
     } catch {
-      // 非 Supabase JWT，改試學生 JWT
+      // 非 Supabase JWT
     }
-    // 2. 嘗試學生 JWT
-    const studentSecret = c.env.STUDENT_JWT_SECRET
     if (!studentSecret) {
-      console.log('[auth] 503 student_auth_not_configured path=' + c.req.path)
       return c.json({
         message: 'Student auth not configured on server',
         code: 'student_auth_not_configured',
       }, 503)
     }
-    const studentPayload = await verifyStudentJwt(studentSecret, token)
-    if (studentPayload) {
-      c.set('userId', studentPayload.sub)
-      c.set('studentId', studentPayload.sub)
-      c.set('classId', studentPayload.class_id)
-      c.set('studentName', studentPayload.name)
-      c.set('studentGradeLevel', studentPayload.grade_level)
-      await next()
-      return
-    }
-    console.log('[auth] 401 jwt_verify_failed path=' + c.req.path)
     return c.json({
       message: 'Invalid or expired token',
       code: 'jwt_verify_failed',

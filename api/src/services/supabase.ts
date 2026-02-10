@@ -278,6 +278,122 @@ export async function insertExerciseAttempt(
   if (!res.ok) throw new Error(`Supabase: ${await res.text()}`)
 }
 
+/** 寫入或更新錯題本（答錯時呼叫，同題重錯則重置 correct_count） */
+export async function upsertErrorBook(
+  baseUrl: string,
+  serviceKey: string,
+  payload: {
+    student_id: string
+    exercise_id: string
+    subject: string
+    category: string
+    question_index: number
+    error_content: Record<string, unknown>
+  }
+) {
+  const base = baseUrl.replace(/\/$/, '')
+  const url = `${base}/rest/v1/error_book?on_conflict=student_id,exercise_id,question_index`
+  const body = {
+    student_id: payload.student_id,
+    exercise_id: payload.exercise_id,
+    subject: payload.subject ?? 'chinese',
+    category: payload.category,
+    question_index: payload.question_index,
+    error_content: payload.error_content,
+    correct_count: 0,
+    is_resolved: false,
+    last_practiced_at: new Date().toISOString(),
+  }
+  const res = await supabaseFetch(url, serviceKey, {
+    method: 'POST',
+    body: JSON.stringify(body),
+    headers: {
+      Prefer: 'resolution=merge-duplicates',
+      'Content-Type': 'application/json',
+    },
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Supabase error_book: ${text}`)
+  }
+}
+
+/** 查詢學生的待複習錯題（is_resolved = false） */
+export async function listErrorBookItems(
+  baseUrl: string,
+  serviceKey: string,
+  studentId: string,
+  options?: { limit?: number }
+) {
+  const limit = options?.limit ?? 20
+  const url = `${baseUrl.replace(/\/$/, '')}/rest/v1/error_book?student_id=eq.${studentId}&is_resolved=eq.false&order=last_practiced_at.desc.nullsfirst,created_at.desc&limit=${limit}&select=id,exercise_id,category,question_index,error_content,correct_count,last_practiced_at,created_at`
+  const res = await supabaseFetch(url, serviceKey)
+  if (!res.ok) throw new Error(`Supabase: ${await res.text()}`)
+  return (await res.json()) as Array<{
+    id: string
+    exercise_id: string
+    category: string
+    question_index: number
+    error_content: Record<string, unknown>
+    correct_count: number
+    last_practiced_at: string | null
+    created_at: string
+  }>
+}
+
+/** 記錄錯題複習結果：答對則 correct_count+1，達 3 次設 is_resolved；答錯則 correct_count 歸零 */
+export async function updateErrorBookPractice(
+  baseUrl: string,
+  serviceKey: string,
+  id: string,
+  isCorrect: boolean,
+  studentId?: string
+) {
+  const base = baseUrl.replace(/\/$/, '')
+  const getUrl = `${base}/rest/v1/error_book?id=eq.${id}&select=correct_count,student_id`
+  const getRes = await supabaseFetch(getUrl, serviceKey)
+  if (!getRes.ok) throw new Error(`Supabase: ${await getRes.text()}`)
+  const rows = (await getRes.json()) as Array<{ correct_count: number; student_id: string }>
+  if (rows.length === 0) throw new Error('error_book not found')
+  if (studentId && rows[0].student_id !== studentId) throw new Error('forbidden')
+
+  const current = rows[0].correct_count
+  const nextCount = isCorrect ? current + 1 : 0
+  const patch: Record<string, unknown> = {
+    correct_count: nextCount,
+    last_practiced_at: new Date().toISOString(),
+  }
+  if (nextCount >= 3) {
+    patch.is_resolved = true
+  }
+
+  const patchUrl = `${base}/rest/v1/error_book?id=eq.${id}`
+  const patchRes = await supabaseFetch(patchUrl, serviceKey, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  })
+  if (!patchRes.ok) throw new Error(`Supabase: ${await patchRes.text()}`)
+}
+
+/** 取得練習中某題的完整題目（用於錯題複習） */
+export async function getExerciseQuestionByIndex(
+  baseUrl: string,
+  serviceKey: string,
+  exerciseId: string,
+  questionIndex: number
+): Promise<unknown | null> {
+  const url = `${baseUrl.replace(/\/$/, '')}/rest/v1/exercises?id=eq.${exerciseId}&select=questions`
+  const res = await supabaseFetch(url, serviceKey)
+  if (!res.ok) throw new Error(`Supabase: ${await res.text()}`)
+  const rows = (await res.json()) as Array<{ questions: unknown[] }>
+  if (rows.length === 0) return null
+  const questions = rows[0].questions
+  if (!Array.isArray(questions) || questionIndex < 0 || questionIndex >= questions.length) {
+    return null
+  }
+  return questions[questionIndex]
+}
+
 /** 寫入 embeddings_log（RAG 嵌入追蹤） */
 export async function createEmbeddingLog(
   baseUrl: string,

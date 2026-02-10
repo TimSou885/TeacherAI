@@ -6,6 +6,8 @@ import Dictation from './Dictation'
 import StrokePractice from './StrokePractice'
 import Practice from './Practice'
 import PracticeSession from './PracticeSession'
+import ErrorBook from './ErrorBook'
+import ErrorReviewSession from './ErrorReviewSession'
 
 const tabs = [
   { path: 'chat', label: '對話', icon: '💬' },
@@ -70,23 +72,29 @@ const practiceCategories = [
   { id: 'dictation' as const, label: '默書' },
   { id: 'stroke' as const, label: '筆順測驗' },
   { id: 'quiz' as const, label: '測驗' },
+  { id: 'errorbook' as const, label: '錯題本' },
 ]
 
 export function StudentPracticeTab() {
-  const [practiceCategory, setPracticeCategory] = useState<'dictation' | 'stroke' | 'quiz'>('dictation')
+  const [practiceCategory, setPracticeCategory] = useState<'dictation' | 'stroke' | 'quiz' | 'errorbook'>('dictation')
   const [quizExercise, setQuizExercise] = useState<{ id: string; title: string } | null>(null)
+  const [errorReviewItems, setErrorReviewItems] = useState<Parameters<typeof ErrorReviewSession>[0]['items'] | null>(null)
 
   const content =
     practiceCategory === 'dictation' ? (
       <Dictation />
     ) : practiceCategory === 'stroke' ? (
       <StrokePractice />
+    ) : errorReviewItems ? (
+      <ErrorReviewSession items={errorReviewItems} onFinish={() => setErrorReviewItems(null)} />
     ) : quizExercise ? (
       <PracticeSession
         exerciseId={quizExercise.id}
         title={quizExercise.title}
         onBack={() => setQuizExercise(null)}
       />
+    ) : practiceCategory === 'errorbook' ? (
+      <ErrorBook onStartReview={(items) => setErrorReviewItems(items)} />
     ) : (
       <Practice onSelectExercise={(id, title) => setQuizExercise({ id, title })} />
     )
@@ -103,6 +111,7 @@ export function StudentPracticeTab() {
             onClick={() => {
               setPracticeCategory(cat.id)
               if (cat.id !== 'quiz') setQuizExercise(null)
+              if (cat.id !== 'errorbook') setErrorReviewItems(null)
             }}
             className={`min-h-[44px] flex-1 px-4 rounded-xl font-medium touch-manipulation transition ${
               practiceCategory === cat.id

@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react'
-import { apiFetch, getStudentSession } from '../../lib/api'
+import { apiFetch, clearStudentSession, getStudentSession, isStudentToken } from '../../lib/api'
 
 type Question =
-  | { type: 'multiple_choice' | 'choice'; question: string; options?: string[]; correct?: number }
-  | { type: 'fill_blank' | 'fill'; question: string; correct?: string; hint?: string }
-  | { type: 'true_false' | 'judge'; question: string; correct?: boolean; explanation?: string }
-  | { type: 'reorder' | 'order'; sentences?: string[]; correct_order?: number[] }
-  | { type: 'matching' | 'match'; question?: string; left?: string[]; right?: string[]; correct_pairs?: number[][] }
-  | { type: 'short_answer'; question: string; reference_answer?: string; scoring_guide?: string }
+  | { type: 'multiple_choice' | 'choice'; question: string; options?: string[]; correct?: number; display_type?: string }
+  | { type: 'fill_blank' | 'fill'; question: string; correct?: string; hint?: string; display_type?: string }
+  | { type: 'true_false' | 'judge'; question: string; correct?: boolean; explanation?: string; display_type?: string }
+  | { type: 'reorder' | 'order'; sentences?: string[]; correct_order?: number[]; display_type?: string }
+  | { type: 'matching' | 'match'; question?: string; left?: string[]; right?: string[]; correct_pairs?: number[][]; display_type?: string }
+  | { type: 'short_answer'; question: string; reference_answer?: string; scoring_guide?: string; display_type?: string }
 
 type SubmitResult = {
   questionIndex: number
@@ -55,11 +55,13 @@ export default function PracticeSession({
 
   async function handleSubmit() {
     const session = getStudentSession()
-    // #region agent log
-    fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PracticeSession:handleSubmit',message:'before submit',data:{hasSession:!!session,tokenLen:session?.token?.length??0},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
-    // #endregion
     if (!session?.token) {
       setError('請先登入學生帳號')
+      return
+    }
+    if (!isStudentToken(session.token)) {
+      clearStudentSession()
+      setError('請重新以學生身分登入後再交卷（已清除舊登入）')
       return
     }
     const payload = questions.map((q, questionIndex) => {
@@ -77,22 +79,17 @@ export default function PracticeSession({
         body: JSON.stringify({ answers: payload }),
       }, { token: session.token })
       if (!res.ok) {
-        // #region agent log
-        fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PracticeSession:submitResponse',message:'submit failed',data:{status:res.status},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
-        // #endregion
         const data = (await res.json().catch(() => ({}))) as { message?: string; code?: string }
-        if (res.status === 401) {
-          console.warn('[submit] 401', data.code, data.message)
-        }
         let msg: string
         if (data.code === 'student_auth_not_configured' || res.status === 503) {
           msg = '伺服器未設定學生登入，請聯絡管理員'
         } else if (data.code === 'missing_token') {
           msg = '未帶登入憑證，請從首頁重新登入學生帳號'
         } else if (data.code === 'student_required') {
-          msg = '請使用學生帳號登入後再交卷'
+          clearStudentSession()
+          msg = '請重新以學生身分登入後再交卷（已清除舊登入）'
         } else if (res.status === 401) {
-          msg = '登入已過期或未以學生身分登入，請從首頁重新登入學生帳號'
+          msg = '登入驗證失敗：請確認 API 已啟動（本機請執行 cd api && npm run dev）且已設定 STUDENT_JWT_SECRET'
         } else {
           msg = data.message ?? `提交失敗 ${res.status}`
         }
@@ -167,6 +164,26 @@ export default function PracticeSession({
   )
 }
 
+const QUESTION_TYPE_LABELS: Record<string, string> = {
+  multiple_choice: '選擇題',
+  choice: '選擇題',
+  fill_blank: '填空題',
+  fill: '填空題',
+  true_false: '判斷題',
+  judge: '判斷題',
+  reorder: '排序題',
+  order: '排序題',
+  matching: '配對題',
+  match: '配對題',
+  short_answer: '簡答題',
+}
+
+function getQuestionTypeLabel(q: Question): string {
+  const qWithDisplay = q as Question & { display_type?: string }
+  if (qWithDisplay.display_type?.trim()) return qWithDisplay.display_type.trim()
+  return QUESTION_TYPE_LABELS[q.type ?? ''] ?? ''
+}
+
 function QuestionBlock({
   index,
   question,
@@ -184,9 +201,18 @@ function QuestionBlock({
   const isCorrect = result?.isCorrect
   const showResult = result !== undefined
 
+  const typeLabel = getQuestionTypeLabel(question)
+
   return (
     <div className={`rounded-xl border-2 p-4 ${showResult ? (isCorrect ? 'border-green-200 bg-green-50/50' : 'border-red-200 bg-red-50/50') : 'border-amber-100 bg-white'}`}>
-      <p className="font-medium text-amber-900 mb-2">第 {index + 1} 題</p>
+      <div className="flex items-center gap-2 mb-2">
+        <p className="font-medium text-amber-900">第 {index + 1} 題</p>
+        {typeLabel && (
+          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-amber-100 text-amber-800">
+            {typeLabel}
+          </span>
+        )}
+      </div>
       {(type === 'multiple_choice' || type === 'choice') && (
         <>
           <p className="text-amber-800 mb-3">{(question as Question & { question?: string }).question}</p>

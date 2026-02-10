@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { clearStudentSession } from '../../lib/api'
 import { supabase } from '../../lib/supabase'
 
 export default function Login() {
@@ -15,6 +16,7 @@ export default function Login() {
     setLoading(true)
     const { error: err } = await supabase.auth.signInWithPassword({ email, password })
     setLoading(false)
+    if (!err) clearStudentSession()
     if (err) {
       setError(err.message === 'Invalid login credentials' ? 'Email 或密碼錯誤' : err.message)
       return

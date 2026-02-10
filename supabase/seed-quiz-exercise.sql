@@ -16,6 +16,7 @@ SELECT
     },
     {
       "type": "fill_blank",
+      "display_type": "填標點符號",
       "question": "媽媽說____你今天乖不乖____（請填入正確標點）",
       "correct": "：「」",
       "hint": "注意引號與冒號"
