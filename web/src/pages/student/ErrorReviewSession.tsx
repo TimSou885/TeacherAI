@@ -220,13 +220,13 @@ export default function ErrorReviewSession({
       }
       return
     }
+    if (isShortAnswer) {
+      handleNext()
+      return
+    }
     const session = getStudentSession()
     if (!session?.token) {
       setError('請先登入')
-      return
-    }
-    if (isShortAnswer) {
-      setError('簡答題請到原練習中作答')
       return
     }
     const graded = gradeQuestion(question, answer)
@@ -268,6 +268,31 @@ export default function ErrorReviewSession({
   const questionText = (question.question as string) ?? (question.word as string) ?? `第 ${index + 1} 題`
   const isCorrect = result?.isCorrect
   const showResult = result !== undefined && result !== null
+
+  if (isShortAnswer) {
+    return (
+      <div className="flex-1 overflow-auto p-6 flex flex-col">
+        <div className="flex items-center justify-between mb-4">
+          <button type="button" onClick={index === 0 ? onFinish : handleNext} className="text-amber-700 text-sm underline">
+            {index === 0 ? '← 返回' : '← 上一題'}
+          </button>
+          <span className="text-amber-800 text-sm">錯題複習 {progress}</span>
+        </div>
+        <div className="rounded-xl border-2 border-amber-200 bg-amber-50/50 p-4 mb-6">
+          <p className="font-medium text-amber-900 mb-2">第 {index + 1} 題（簡答題）</p>
+          <p className="text-amber-800 mb-3">{questionText}</p>
+          <p className="text-amber-700 text-sm">此題為簡答題，無法在此自動評分。請至原練習中作答。</p>
+        </div>
+        <button
+          type="button"
+          onClick={index + 1 >= items.length ? onFinish : handleNext}
+          className="min-h-[44px] px-6 py-3 rounded-xl bg-amber-500 text-white font-medium touch-manipulation"
+        >
+          {index + 1 >= items.length ? '完成' : '下一題'}
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div className="flex-1 overflow-auto p-6 flex flex-col">

@@ -58,7 +58,10 @@ export default function ErrorBook({
     )
   }
 
-  const reviewItems = items.slice(0, 10)
+  const reviewItems = items
+    .filter((i) => ((i.error_content?.question_data as Record<string, unknown>)?.type ?? '') !== 'short_answer')
+    .slice(0, 10)
+  const shortAnswerCount = items.filter((i) => ((i.error_content?.question_data as Record<string, unknown>)?.type ?? '') === 'short_answer').length
 
   return (
     <div className="flex-1 overflow-auto p-6">
@@ -75,7 +78,8 @@ export default function ErrorBook({
         <>
           <p className="text-amber-800 text-sm mb-3">
             待複習：{items.length} 題
-            {reviewItems.length < items.length && `（每次最多 ${reviewItems.length} 題）`}
+            {shortAnswerCount > 0 && `（其中 ${shortAnswerCount} 題為簡答題，請至原練習作答）`}
+            {reviewItems.length < items.length && shortAnswerCount === 0 && `（每次最多 ${reviewItems.length} 題）`}
           </p>
           <ul className="space-y-2 mb-6">
             {reviewItems.map((item) => {
@@ -99,13 +103,17 @@ export default function ErrorBook({
               )
             })}
           </ul>
-          <button
-            type="button"
-            onClick={() => onStartReview(reviewItems)}
-            className="min-h-[44px] w-full px-6 py-3 rounded-xl bg-amber-500 text-white font-medium touch-manipulation hover:bg-amber-600"
-          >
-            開始複習（{reviewItems.length} 題）
-          </button>
+          {reviewItems.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => onStartReview(reviewItems)}
+              className="min-h-[44px] w-full px-6 py-3 rounded-xl bg-amber-500 text-white font-medium touch-manipulation hover:bg-amber-600"
+            >
+              開始複習（{reviewItems.length} 題）
+            </button>
+          ) : (
+            <p className="text-amber-700 text-sm">目前待複習的題目皆為簡答題，請至原練習中作答。</p>
+          )}
         </>
       )}
     </div>
