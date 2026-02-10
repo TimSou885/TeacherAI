@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { apiFetch, getStudentSession, clearStudentSession, isStudentToken } from '../../lib/api'
+import { apiFetch, getStudentSession, isStudentToken } from '../../lib/api'
 
-type ErrorBookItem = {
+export type ErrorBookItem = {
   id: string
   exercise_id: string
   category: string
