@@ -74,7 +74,6 @@ app.post('/chat', async (c) => {
   const studentName = c.get('studentName') ?? '同學'
   const studentGradeLevel = c.get('studentGradeLevel') ?? 3
   let errorBookSummary = ''
-  const studentId = c.get('studentId')
   if (studentId) {
     try {
       errorBookSummary = await supabase.getErrorBookSummaryForStudent(baseUrl, serviceKey, studentId)
