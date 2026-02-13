@@ -74,7 +74,10 @@ function QuestionInput({
   }
   if (type === 'fill_blank' || type === 'fill') {
     const displayType = (question.display_type as string) ?? ''
-    if (displayType === '填標點符號') {
+    const correctStr = typeof question.correct === 'string' ? question.correct : String(question.correct ?? '')
+    const looksLikePunctuation = /[，。、；：「」『』！？（）]/.test(correctStr)
+    const usePunctuationPicker = displayType === '填標點符號' || looksLikePunctuation
+    if (usePunctuationPicker) {
       return (
         <PunctuationPicker
           value={typeof value === 'string' ? value : ''}
