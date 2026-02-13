@@ -4,6 +4,7 @@ import { hasSupabaseEnv } from './lib/supabase'
 import { getStudentSession } from './lib/api'
 import Home from './pages/Home'
 import Login from './pages/auth/Login'
+import Generate from './pages/teacher/Generate'
 import Chat from './pages/student/Chat'
 import StudentLogin from './pages/student/StudentLogin'
 import StudentHome, {
@@ -49,6 +50,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <Chat />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/generate"
+          element={
+            <ProtectedRoute>
+              <Generate />
             </ProtectedRoute>
           }
         />

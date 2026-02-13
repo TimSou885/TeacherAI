@@ -200,6 +200,18 @@ export async function getStudentInClass(
   return rows.length > 0 ? rows[0] : null
 }
 
+/** 依 teacher_id 列出班級 */
+export async function listClassesByTeacher(
+  baseUrl: string,
+  serviceKey: string,
+  teacherId: string
+) {
+  const url = `${baseUrl.replace(/\/$/, '')}/rest/v1/classes?teacher_id=eq.${teacherId}&select=id,name,join_code&order=name.asc`
+  const res = await supabaseFetch(url, serviceKey)
+  if (!res.ok) throw new Error(`Supabase: ${await res.text()}`)
+  return (await res.json()) as Array<{ id: string; name: string; join_code: string }>
+}
+
 /** 依 class_id 列出練習（可選 category，如 dictation） */
 export async function listExercises(
   baseUrl: string,
@@ -318,6 +330,23 @@ export async function upsertErrorBook(
   }
 }
 
+/** 取得學生錯題摘要（供 AI 主動引導練習，最多 5 條） */
+export async function getErrorBookSummaryForStudent(
+  baseUrl: string,
+  serviceKey: string,
+  studentId: string
+): Promise<string> {
+  const items = await listErrorBookItems(baseUrl, serviceKey, studentId, { limit: 5 })
+  if (items.length === 0) return ''
+  return items
+    .map((i) => {
+      const ec = i.error_content
+      const q = ec?.question ?? ec?.word ?? ''
+      return `- ${String(q).slice(0, 40)}${String(q).length > 40 ? '…' : ''}（${i.category}）`
+    })
+    .join('\n')
+}
+
 /** 查詢學生的待複習錯題（is_resolved = false） */
 export async function listErrorBookItems(
   baseUrl: string,
@@ -392,6 +421,152 @@ export async function getExerciseQuestionByIndex(
     return null
   }
   return questions[questionIndex]
+}
+
+/** 建立練習（發佈 AI 出題用） */
+export async function insertExercise(
+  baseUrl: string,
+  serviceKey: string,
+  payload: {
+    class_id: string
+    subject?: string
+    title: string
+    category: string
+    questions: unknown
+    grade_level?: number
+    is_active?: boolean
+  }
+): Promise<string> {
+  const url = `${baseUrl.replace(/\/$/, '')}/rest/v1/exercises`
+  const res = await supabaseFetch(url, serviceKey, {
+    method: 'POST',
+    body: JSON.stringify({
+      class_id: payload.class_id,
+      subject: payload.subject ?? 'chinese',
+      title: payload.title,
+      category: payload.category,
+      questions: payload.questions,
+      grade_level: payload.grade_level ?? 3,
+      is_active: payload.is_active ?? true,
+    }),
+    headers: { Prefer: 'return=representation' },
+  })
+  if (!res.ok) throw new Error(`Supabase: ${await res.text()}`)
+  const rows = (await res.json()) as Array<{ id: string }>
+  return rows[0]?.id ?? ''
+}
+
+/** 建立 AI 生成內容草稿 */
+export async function createAiGeneratedContent(
+  baseUrl: string,
+  serviceKey: string,
+  payload: {
+    class_id: string
+    subject?: string
+    category: string
+    source_text?: string | null
+    generated_content: unknown
+    teacher_id?: string | null
+  }
+): Promise<string> {
+  const url = `${baseUrl.replace(/\/$/, '')}/rest/v1/ai_generated_content`
+  const res = await supabaseFetch(url, serviceKey, {
+    method: 'POST',
+    body: JSON.stringify({
+      class_id: payload.class_id,
+      subject: payload.subject ?? 'chinese',
+      category: payload.category,
+      source_text: payload.source_text ?? null,
+      generated_content: payload.generated_content,
+      status: 'draft',
+      teacher_id: payload.teacher_id ?? null,
+    }),
+    headers: { Prefer: 'return=representation' },
+  })
+  if (!res.ok) throw new Error(`Supabase: ${await res.text()}`)
+  const rows = (await res.json()) as Array<{ id: string }>
+  return rows[0]?.id ?? ''
+}
+
+/** 更新 AI 生成內容（審核後發佈時） */
+export async function updateAiGeneratedContent(
+  baseUrl: string,
+  serviceKey: string,
+  id: string,
+  patch: { status?: string; approved_content?: unknown; approved_at?: string }
+) {
+  const url = `${baseUrl.replace(/\/$/, '')}/rest/v1/ai_generated_content?id=eq.${id}`
+  const res = await supabaseFetch(url, serviceKey, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  })
+  if (!res.ok) throw new Error(`Supabase: ${await res.text()}`)
+}
+
+/** 取得單一 AI 生成內容 */
+export async function getAiGeneratedContentById(
+  baseUrl: string,
+  serviceKey: string,
+  id: string
+): Promise<{
+  id: string
+  class_id: string
+  category: string
+  source_text: string | null
+  generated_content: unknown
+  status: string
+  approved_content: unknown
+} | null> {
+  const url = `${baseUrl.replace(/\/$/, '')}/rest/v1/ai_generated_content?id=eq.${id}&select=id,class_id,category,source_text,generated_content,status,approved_content`
+  const res = await supabaseFetch(url, serviceKey)
+  if (!res.ok) throw new Error(`Supabase: ${await res.text()}`)
+  const rows = (await res.json()) as Array<{
+    id: string
+    class_id: string
+    category: string
+    source_text: string | null
+    generated_content: unknown
+    status: string
+    approved_content: unknown
+  }>
+  return rows[0] ?? null
+}
+
+/** 查詢班級錯題摘要（供「根據錯題出複習題」注入 AI prompt） */
+export async function getClassErrorBookSummary(
+  baseUrl: string,
+  serviceKey: string,
+  classId: string
+): Promise<string> {
+  const exUrl = `${baseUrl.replace(/\/$/, '')}/rest/v1/exercises?class_id=eq.${classId}&select=id`
+  const exRes = await supabaseFetch(exUrl, serviceKey)
+  if (!exRes.ok) return ''
+  const exercises = (await exRes.json()) as Array<{ id: string }>
+  const exerciseIds = exercises.map((e) => e.id)
+  if (exerciseIds.length === 0) return '班上目前無練習，也無錯題。'
+  const url = `${baseUrl.replace(/\/$/, '')}/rest/v1/error_book?is_resolved=eq.false&exercise_id=in.(${exerciseIds.join(',')})&select=exercise_id,category,error_content`
+  const res = await supabaseFetch(url, serviceKey)
+  if (!res.ok) return ''
+  const rows = (await res.json()) as Array<{
+    exercise_id: string
+    category: string
+    error_content: Record<string, unknown>
+  }>
+  const byCategory = new Map<string, Map<string, number>>()
+  for (const row of rows) {
+    const cat = row.category || 'quiz'
+    const q = row.error_content?.question ?? row.error_content?.word ?? JSON.stringify(row.error_content)
+    const key = String(q).slice(0, 60)
+    if (!byCategory.has(cat)) byCategory.set(cat, new Map())
+    const m = byCategory.get(cat)!
+    m.set(key, (m.get(key) ?? 0) + 1)
+  }
+  const lines: string[] = []
+  for (const [cat, m] of byCategory) {
+    const top = [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5)
+    lines.push(`【${cat}】${top.map(([k, n]) => `「${k}」錯了 ${n} 人`).join('；')}`)
+  }
+  return lines.join('\n') || '班上目前無待複習錯題。'
 }
 
 /** 寫入 embeddings_log（RAG 嵌入追蹤） */

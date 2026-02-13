@@ -32,12 +32,20 @@ export default function Home() {
           學生登入
         </Link>
         {user ? (
-          <Link
-            to="/chat"
-            className="inline-block w-full py-3 px-4 rounded-xl border-2 border-amber-400 text-amber-800 font-medium hover:bg-amber-50 transition"
-          >
-            進入 AI 對話（老師）
-          </Link>
+          <>
+            <Link
+              to="/chat"
+              className="inline-block w-full py-3 px-4 rounded-xl border-2 border-amber-400 text-amber-800 font-medium hover:bg-amber-50 transition mb-3"
+            >
+              進入 AI 對話
+            </Link>
+            <Link
+              to="/generate"
+              className="inline-block w-full py-3 px-4 rounded-xl border-2 border-amber-400 text-amber-800 font-medium hover:bg-amber-50 transition"
+            >
+              AI 出題
+            </Link>
+          </>
         ) : (
           <Link
             to="/login"

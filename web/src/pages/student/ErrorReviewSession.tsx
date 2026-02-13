@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { apiFetch, getStudentSession } from '../../lib/api'
+import PunctuationPicker from '../../components/PunctuationPicker'
 import type { ErrorBookItem } from './ErrorBook'
 
 function normalizeText(s: string): string {
@@ -72,6 +73,15 @@ function QuestionInput({
     )
   }
   if (type === 'fill_blank' || type === 'fill') {
+    const displayType = (question.display_type as string) ?? ''
+    if (displayType === '填標點符號') {
+      return (
+        <PunctuationPicker
+          value={typeof value === 'string' ? value : ''}
+          onChange={(v) => onChange(v)}
+        />
+      )
+    }
     return (
       <input
         type="text"

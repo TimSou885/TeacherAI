@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { apiFetch, clearStudentSession, getStudentSession, isStudentToken } from '../../lib/api'
+import PunctuationPicker from '../../components/PunctuationPicker'
 
 type Question =
   | { type: 'multiple_choice' | 'choice'; question: string; options?: string[]; correct?: number; display_type?: string }
@@ -235,13 +236,20 @@ function QuestionBlock({
       {(type === 'fill_blank' || type === 'fill') && (
         <>
           <p className="text-amber-800 mb-3">{(question as Question & { question?: string }).question}</p>
-          <input
-            type="text"
-            value={typeof value === 'string' ? value : ''}
-            onChange={(e) => onChange(e.target.value)}
-            className="w-full min-h-[44px] py-2 px-3 rounded-lg border-2 border-amber-200"
-            placeholder="請輸入答案"
-          />
+          {(question as Question & { display_type?: string }).display_type === '填標點符號' ? (
+            <PunctuationPicker
+              value={typeof value === 'string' ? value : ''}
+              onChange={(v) => onChange(v)}
+            />
+          ) : (
+            <input
+              type="text"
+              value={typeof value === 'string' ? value : ''}
+              onChange={(e) => onChange(e.target.value)}
+              className="w-full min-h-[44px] py-2 px-3 rounded-lg border-2 border-amber-200"
+              placeholder="請輸入答案"
+            />
+          )}
         </>
       )}
       {(type === 'true_false' || type === 'judge') && (
