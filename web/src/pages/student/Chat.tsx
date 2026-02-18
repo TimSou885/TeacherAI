@@ -38,16 +38,20 @@ export default function Chat({ isStudent }: { isStudent?: boolean } = {}) {
   const [showHistory, setShowHistory] = useState(false)
   const [strokeChar, setStrokeChar] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+  /** 列表載入成功時用的 token，後續點進／刪除對話都用同一份，避免與 getStudentSession() 不同步 */
+  const conversationAuthTokenRef = useRef<string | null>(null)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
   async function loadConversations() {
-    const res = await apiFetch('/api/conversations', undefined, { preferStudent: isStudent })
+    const studentToken = isStudent ? getStudentSession()?.token ?? null : undefined
+    const res = await apiFetch('/api/conversations', { cache: 'no-store' }, { preferStudent: isStudent, token: studentToken })
     if (!res.ok) return
     const data = (await res.json()) as { conversations?: ConversationSummary[] }
     setConversations(data.conversations ?? [])
+    if (isStudent && studentToken) conversationAuthTokenRef.current = studentToken
   }
 
   useEffect(() => {
@@ -55,7 +59,8 @@ export default function Chat({ isStudent }: { isStudent?: boolean } = {}) {
   }, [])
 
   async function loadConversation(id: string) {
-    const res = await apiFetch(`/api/conversations/${id}`, undefined, { preferStudent: isStudent })
+    const studentToken = isStudent ? (conversationAuthTokenRef.current ?? getStudentSession()?.token ?? null) : undefined
+    const res = await apiFetch(`/api/conversations/${id}`, undefined, { preferStudent: isStudent, token: studentToken })
     if (!res.ok) return
     const data = (await res.json()) as { messages?: Message[] }
     setMessages(data.messages ?? [])
@@ -112,7 +117,8 @@ export default function Chat({ isStudent }: { isStudent?: boolean } = {}) {
 
   async function deleteConversation(id: string) {
     if (!window.confirm('確定要刪除這則對話嗎？')) return
-    const res = await apiFetch(`/api/conversations/${id}`, { method: 'DELETE' }, { preferStudent: isStudent })
+    const studentToken = isStudent ? (conversationAuthTokenRef.current ?? getStudentSession()?.token ?? null) : undefined
+    const res = await apiFetch(`/api/conversations/${id}`, { method: 'DELETE' }, { preferStudent: isStudent, token: studentToken })
     if (!res.ok) return
     if (conversationId === id) {
       setConversationId(null)
@@ -161,7 +167,7 @@ export default function Chat({ isStudent }: { isStudent?: boolean } = {}) {
                 <button
                   type="button"
                   onClick={() => loadConversation(c.id)}
-                  className="flex-1 min-w-0 text-left px-4 py-2 rounded-xl bg-white border border-amber-100 hover:bg-amber-50"
+                  className="flex-1 min-w-0 text-left px-4 py-2 rounded-xl bg-white border border-amber-100 hover:bg-amber-50 touch-manipulation"
                 >
                   {c.title || '新對話'} · {new Date(c.updated_at).toLocaleDateString('zh-TW')}
                 </button>

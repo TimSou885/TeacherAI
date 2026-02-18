@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { apiFetch, clearStudentSession, getStudentSession, isStudentToken } from '../../lib/api'
 import PunctuationPicker from '../../components/PunctuationPicker'
+import ReorderQuestion from '../../components/questions/ReorderQuestion'
+import MatchingQuestion from '../../components/questions/MatchingQuestion'
 
 type Question =
   | { type: 'multiple_choice' | 'choice'; question: string; options?: string[]; correct?: number; display_type?: string }
@@ -67,8 +69,10 @@ export default function PracticeSession({
     }
     const payload = questions.map((q, questionIndex) => {
       let value = answers[questionIndex]
-      if ((q.type === 'reorder' || q.type === 'order') && (!Array.isArray(value) || value.length !== (q.sentences?.length ?? 0))) {
-        value = (q.sentences ?? []).map((_, i) => i)
+      const reorderQ = q as { sentences?: string[]; options?: string[] }
+      const reorderItems = reorderQ.sentences ?? reorderQ.options ?? []
+      if ((q.type === 'reorder' || q.type === 'order') && reorderItems.length > 0 && (!Array.isArray(value) || value.length !== reorderItems.length)) {
+        value = reorderItems.map((_: unknown, i: number) => i)
       }
       return { questionIndex, value: value ?? '' }
     })
@@ -148,7 +152,19 @@ export default function PracticeSession({
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={submitting || Object.keys(answers).length < questions.length}
+              disabled={
+                submitting ||
+                Object.keys(answers).length < questions.length ||
+                questions.some((q, i) => {
+                  const t = q.type ?? ''
+                  if (t !== 'reorder' && t !== 'order') return false
+                  const v = answers[i]
+                  const arr = Array.isArray(v) ? v : []
+                  const reorderQ = q as { sentences?: string[]; options?: string[] }
+                  const items = reorderQ.sentences ?? reorderQ.options ?? []
+                  return items.length > 0 && arr.length !== items.length
+                })
+              }
               className="min-h-[44px] px-6 py-3 rounded-xl bg-amber-500 text-white font-medium disabled:opacity-50 touch-manipulation"
             >
               {submitting ? '提交中…' : '交卷'}
@@ -163,6 +179,30 @@ export default function PracticeSession({
       )}
     </div>
   )
+}
+
+function parseSentencesFromQuestion(q: string): string[] {
+  if (!q || typeof q !== 'string') return []
+  const content = q.includes('：') ? q.split('：')[1] ?? q : q.includes(':') ? q.split(':')[1] ?? q : q
+  const trimNum = (s: string) => s.replace(/^[\d①②③④⑤⑥⑦⑧⑨⑩、．.\s]+/, '').trim()
+  const byNewline = content.split(/\n+/).map(trimNum).filter((s) => s.length > 0)
+  if (byNewline.length >= 2) return byNewline
+  const byPunct = content.split(/[。；]+/).map(trimNum).filter((s) => s.length > 0)
+  return byPunct.length >= 2 ? byPunct : []
+}
+
+function getReorderCorrectAnswer(question: Record<string, unknown>): string {
+  const fromSentences = (Array.isArray(question.sentences) ? question.sentences : []) as string[]
+  const fromOptions = Array.isArray(question.options) ? (question.options as string[]) : []
+  const fromParse = parseSentencesFromQuestion((question.question as string) ?? '')
+  const items = fromSentences.length > 0 ? fromSentences : fromOptions.length > 0 ? fromOptions : fromParse
+  let correctOrder = (Array.isArray(question.correct_order) ? question.correct_order : Array.isArray(question.correct) ? (question.correct as number[]) : []) as number[]
+  if (correctOrder.length === 0 && items.length > 0) correctOrder = items.map((_, i) => i)
+  if (items.length > 0 && correctOrder.length > 0) {
+    return correctOrder.map((i) => items[i] ?? '').filter(Boolean).join(' → ')
+  }
+  if (correctOrder.length > 0) return correctOrder.join(', ')
+  return ''
 }
 
 const QUESTION_TYPE_LABELS: Record<string, string> = {
@@ -309,7 +349,10 @@ function QuestionBlock({
           ) : (
             <>
               <p className="text-red-700 font-medium">答錯了</p>
-              {result.correctAnswer != null && <p className="text-amber-800">正確答案：{result.correctAnswer}</p>}
+              {(() => {
+                const correctDisplay = (result.correctAnswer && String(result.correctAnswer).trim()) || ((type === 'reorder' || type === 'order') ? getReorderCorrectAnswer(question as Record<string, unknown>) : '')
+                return correctDisplay ? <p className="text-amber-800">正確答案：{correctDisplay}</p> : null
+              })()}
             </>
           )}
           {result.feedback != null && result.feedback !== '' && <p className="text-amber-800 mt-1">回饋：{result.feedback}</p>}
@@ -319,85 +362,3 @@ function QuestionBlock({
   )
 }
 
-function ReorderQuestion({
-  question,
-  value,
-  onChange,
-}: {
-  question: { sentences?: string[]; correct_order?: number[] }
-  value: unknown
-  onChange: (v: unknown) => void
-}) {
-  const sentences = question.sentences ?? []
-  const currentOrder = (Array.isArray(value) ? value : []) as number[]
-  const order = currentOrder.length === sentences.length ? currentOrder : sentences.map((_, i) => i)
-
-  function move(from: number, delta: number) {
-    const to = from + delta
-    if (to < 0 || to >= order.length) return
-    const next = order.slice()
-    const [removed] = next.splice(from, 1)
-    next.splice(to, 0, removed)
-    onChange(next)
-  }
-
-  return (
-    <div className="space-y-2">
-      <p className="text-amber-800 mb-2">請依正確順序排列（點箭頭調整）：</p>
-      {order.map((sentenceIdx, displayPos) => (
-        <div key={displayPos} className="flex items-center gap-2 flex-wrap">
-          <span className="text-amber-600 text-sm w-8">第{displayPos + 1}句</span>
-          <span className="flex-1 min-w-0 py-2 px-3 rounded-lg bg-amber-50 border border-amber-100">{sentences[sentenceIdx] ?? ''}</span>
-          <div className="flex gap-1">
-            <button type="button" onClick={() => move(displayPos, -1)} disabled={displayPos === 0} className="p-2 rounded-lg bg-amber-100 disabled:opacity-50">↑</button>
-            <button type="button" onClick={() => move(displayPos, 1)} disabled={displayPos === order.length - 1} className="p-2 rounded-lg bg-amber-100 disabled:opacity-50">↓</button>
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function MatchingQuestion({
-  question,
-  value,
-  onChange,
-}: {
-  question: { question?: string; left?: string[]; right?: string[] }
-  value: unknown
-  onChange: (v: unknown) => void
-}) {
-  const left = question.left ?? []
-  const right = question.right ?? []
-  const pairList = (Array.isArray(value) ? value : []) as number[][]
-  const pairs: number[] = left.map((_, i) => pairList.find((p) => p[0] === i)?.[1] ?? 0)
-
-  function setPair(leftIdx: number, rightIdx: number) {
-    const next = pairs.slice()
-    next[leftIdx] = rightIdx
-    onChange(next.map((r, l) => [l, r]))
-  }
-
-  return (
-    <div className="space-y-3">
-      {question.question != null && question.question !== '' && <p className="text-amber-800 mb-2">{question.question}</p>}
-      <div className="space-y-2">
-        {left.map((label, i) => (
-          <div key={i} className="flex items-center gap-2 flex-wrap">
-            <span className="w-24 shrink-0 py-2 px-2 rounded-lg bg-amber-50 border border-amber-100">{label}</span>
-            <span className="text-amber-600">→</span>
-            <select
-              value={pairs[i] ?? 0}
-              onChange={(e) => setPair(i, Number(e.target.value))}
-              className="min-h-[44px] flex-1 min-w-[120px] py-2 px-3 rounded-lg border-2 border-amber-200"
-            >
-              {right.map((opt, j) => (
-                <option key={j} value={j}>{opt}</option>
-              ))}
-            </select>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}

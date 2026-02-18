@@ -26,12 +26,15 @@ app.get('/conversations/:id', async (c) => {
   const baseUrl = c.env.SUPABASE_URL
   const serviceKey = c.env.SUPABASE_SERVICE_ROLE_KEY
   const studentId = c.get('studentId')
+  const userId = c.get('userId')
   try {
     const convStudentId = await supabase.getConversationStudentId(baseUrl, serviceKey, id)
     if (studentId) {
       if (convStudentId !== studentId) return c.json({ message: 'Not found' }, 404)
     } else {
-      if (convStudentId !== null) return c.json({ message: 'Not found' }, 404)
+      if (convStudentId !== null) {
+        if (userId !== convStudentId) return c.json({ message: 'Not found' }, 404)
+      }
     }
     const rows = await supabase.getConversationMessages(baseUrl, serviceKey, id)
     const messages = rows.map((r) => ({
@@ -50,12 +53,15 @@ app.delete('/conversations/:id', async (c) => {
   const baseUrl = c.env.SUPABASE_URL
   const serviceKey = c.env.SUPABASE_SERVICE_ROLE_KEY
   const studentId = c.get('studentId')
+  const userId = c.get('userId')
   try {
     const convStudentId = await supabase.getConversationStudentId(baseUrl, serviceKey, id)
     if (studentId) {
       if (convStudentId !== studentId) return c.json({ message: 'Not found' }, 404)
     } else {
-      if (convStudentId !== null) return c.json({ message: 'Not found' }, 404)
+      if (convStudentId !== null) {
+        if (userId !== convStudentId) return c.json({ message: 'Not found' }, 404)
+      }
     }
     await supabase.deleteConversation(baseUrl, serviceKey, id)
     return c.json({ ok: true })

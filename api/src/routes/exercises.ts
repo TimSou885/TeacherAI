@@ -25,6 +25,23 @@ function normalizeText(s: string): string {
   return s.trim().replace(/\s+/g, '').replace(/［/g, '[').replace(/［/g, ']').replace(/（/g, '(').replace(/）/g, ')')
 }
 
+function parseSentencesFromQuestion(q: string): string[] {
+  if (!q || typeof q !== 'string') return []
+  const content = q.includes('：') ? q.split('：')[1] ?? q : q.includes(':') ? q.split(':')[1] ?? q : q
+  const trimNum = (s: string) => s.replace(/^[\d①②③④⑤⑥⑦⑧⑨⑩、．.\s]+/, '').trim()
+  const byNewline = content.split(/\n+/).map(trimNum).filter((s) => s.length > 0)
+  if (byNewline.length >= 2) return byNewline
+  const byPunct = content.split(/[。；]+/).map(trimNum).filter((s) => s.length > 0)
+  return byPunct.length >= 2 ? byPunct : []
+}
+
+function getReorderItems(q: Question): string[] {
+  const fromSentences = (q.sentences ?? []) as string[]
+  const fromOptions = Array.isArray(q.options) ? (q.options as string[]) : []
+  const fromParse = parseSentencesFromQuestion(q.question ?? '')
+  return fromSentences.length > 0 ? fromSentences : fromOptions.length > 0 ? fromOptions : fromParse
+}
+
 function gradeQuestion(q: Question, studentValue: unknown): { isCorrect: boolean; correctAnswer?: string; feedback?: string } {
   const type = (q.type ?? '').toLowerCase()
   if (type === 'multiple_choice' || type === 'choice') {
@@ -46,10 +63,15 @@ function gradeQuestion(q: Question, studentValue: unknown): { isCorrect: boolean
     return { isCorrect: ans === correct, correctAnswer: correct ? '對' : '錯' }
   }
   if (type === 'reorder' || type === 'order') {
-    const correctOrder = (q.correct_order ?? []).slice()
+    const items = getReorderItems(q)
+    let correctOrder = (Array.isArray(q.correct_order) ? q.correct_order : Array.isArray(q.correct) ? (q.correct as number[]) : []).slice()
+    if (correctOrder.length === 0 && items.length > 0) correctOrder = items.map((_, i) => i)
     const ans = Array.isArray(studentValue) ? studentValue : []
     const isCorrect = ans.length === correctOrder.length && ans.every((v, i) => Number(v) === correctOrder[i])
-    return { isCorrect, correctAnswer: correctOrder.join(', ') }
+    const correctAnswer = items.length > 0
+      ? correctOrder.map((i) => items[i] ?? '').filter(Boolean).join(' → ')
+      : correctOrder.join(', ')
+    return { isCorrect, correctAnswer }
   }
   if (type === 'matching' || type === 'match') {
     const pairs = (q.correct_pairs ?? []) as number[][]

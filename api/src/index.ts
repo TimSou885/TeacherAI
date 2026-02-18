@@ -71,6 +71,7 @@ app.route('/api', ttsRoutes)
 
 app.use('/api/chat', authMiddleware)
 app.use('/api/conversations', authMiddleware)
+app.use('/api/conversations/*', authMiddleware)
 app.use('/api/exercises', authMiddleware)
 app.use('/api/score', authMiddleware)
 app.use('/api/error-book', authMiddleware)

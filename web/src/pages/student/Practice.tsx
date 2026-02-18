@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { apiFetch } from '../../lib/api'
 
 const QUIZ_CATEGORIES = [
+  { id: 'error_review', label: '錯題複習題' },
   { id: 'reading', label: '閱讀理解' },
   { id: 'grammar', label: '語文基礎' },
   { id: 'vocabulary', label: '詞語運用' },
