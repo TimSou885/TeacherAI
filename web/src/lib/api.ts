@@ -68,13 +68,23 @@ async function getToken(preferStudent?: boolean): Promise<string | null> {
   return student?.token ?? null
 }
 
+/** 僅回傳 Supabase 老師 session token（不 fallback 學生），供教師 API 使用 */
+export async function getTeacherToken(): Promise<string | null> {
+  const { data: { session } } = await import('../lib/supabase').then(m => m.supabase.auth.getSession())
+  return session?.access_token ?? null
+}
+
 export async function apiFetch(
   path: string,
   init?: RequestInit,
-  options?: { preferStudent?: boolean; /** 若提供則強制使用此 token（用於交卷等必須為學生 token 的請求） */ token?: string | null }
+  options?: { preferStudent?: boolean; /** 教師 API 專用，僅用 Supabase token，不用學生 token */ preferTeacher?: boolean; /** 若提供則強制使用此 token（用於交卷等必須為學生 token 的請求） */ token?: string | null }
 ): Promise<Response> {
   const useExplicit = options?.token !== undefined
-  const token = useExplicit ? options.token : await getToken(options?.preferStudent)
+  const token = useExplicit
+    ? options.token
+    : options?.preferTeacher
+      ? await getTeacherToken()
+      : await getToken(options?.preferStudent)
   const url = path.startsWith('http') ? path : `${API_URL}${path}`
   const headers = new Headers(init?.headers)
   if (token) headers.set('Authorization', `Bearer ${token}`)

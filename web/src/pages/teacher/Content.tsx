@@ -35,7 +35,7 @@ export default function Content() {
     let cancelled = false
     setLoading(true)
     setError('')
-    apiFetch(`/api/exercises?class_id=${encodeURIComponent(classId)}`)
+    apiFetch(`/api/exercises?class_id=${encodeURIComponent(classId)}`, undefined, { preferTeacher: true })
       .then((res) => {
         if (!res.ok) throw new Error('無法載入練習')
         return res.json()

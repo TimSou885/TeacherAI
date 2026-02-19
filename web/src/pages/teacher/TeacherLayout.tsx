@@ -3,7 +3,7 @@ import { apiFetch } from '../../lib/api'
 import { TeacherClassProvider, useTeacherClass, type ClassItem } from '../../contexts/TeacherClassContext'
 
 async function fetchClasses(): Promise<ClassItem[]> {
-  const res = await apiFetch('/api/classes')
+  const res = await apiFetch('/api/classes', undefined, { preferTeacher: true })
   if (!res.ok) return []
   const data = (await res.json()) as { classes?: ClassItem[] }
   return data.classes ?? []

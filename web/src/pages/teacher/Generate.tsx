@@ -53,7 +53,7 @@ export default function Generate() {
       const res = await apiFetch('/api/generate', {
         method: 'POST',
         body: JSON.stringify(body),
-      })
+      }, { preferTeacher: true })
       if (!res.ok) {
         const d = (await res.json().catch(() => ({}))) as { message?: string }
         throw new Error(d.message ?? `請求失敗 ${res.status}`)
@@ -88,7 +88,7 @@ export default function Generate() {
           title,
           approved_content: content,
         }),
-      })
+      }, { preferTeacher: true })
       if (!res.ok) {
         const d = (await res.json().catch(() => ({}))) as { message?: string }
         throw new Error(d.message ?? '發佈失敗')

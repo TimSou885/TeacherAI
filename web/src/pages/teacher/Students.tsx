@@ -25,7 +25,7 @@ export default function Students() {
     let cancelled = false
     setLoading(true)
     setError('')
-    apiFetch(`/api/teacher/students?class_id=${encodeURIComponent(classId)}`)
+    apiFetch(`/api/teacher/students?class_id=${encodeURIComponent(classId)}`, undefined, { preferTeacher: true })
       .then((res) => {
         if (!res.ok) throw new Error('無法載入學生')
         return res.json()

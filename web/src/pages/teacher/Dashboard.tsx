@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { apiFetch } from '../../lib/api'
+import { apiFetch, getTeacherToken } from '../../lib/api'
 import { useTeacherClass } from '../../contexts/TeacherClassContext'
 
 /** 從 JWT 解出 sub（使用者 ID），僅用於顯示，不驗證簽章 */
@@ -74,10 +74,16 @@ export default function Dashboard() {
     setCheckClassDebug(null)
 
     async function loadDashboard(retryAfterClaim = false) {
-      const res = await apiFetch(`/api/teacher/dashboard?class_id=${encodeURIComponent(classId)}`)
+      const res = await apiFetch(`/api/teacher/dashboard?class_id=${encodeURIComponent(classId)}`, undefined, { preferTeacher: true })
       const data = await res.json().catch(() => ({})) as { message?: string; code?: string }
       if (res.ok) {
         if (!cancelled) setStats(data as DashboardStats)
+        return
+      }
+      if (res.status === 401 && !cancelled) {
+        setError('未登入或登入已過期，請重新登入老師帳號後再試。')
+        setErrorUserId(null)
+        setFetchedUserId(null)
         return
       }
       if (res.status === 404 && data.code === 'class_not_owned' && !retryAfterClaim) {
@@ -86,7 +92,7 @@ export default function Dashboard() {
         const claimRes = await apiFetch('/api/teacher/claim-class', {
           method: 'POST',
           body: JSON.stringify({ class_id: classId }),
-        })
+        }, { preferTeacher: true })
         const claimBody = await claimRes.json().catch(() => ({})) as { message?: string; code?: string; your_user_id?: string }
         if (claimRes.ok && !cancelled) {
           await loadDashboard(true)
@@ -161,12 +167,20 @@ export default function Dashboard() {
           <div className="mt-4 pt-4 border-t border-red-200">
             <button
               type="button"
-              onClick={() => {
+              onClick={async () => {
                 setCheckClassDebug(null)
-                apiFetch(`/api/teacher/check-class?class_id=${encodeURIComponent(classId)}`)
-                  .then((r) => r.json())
-                  .then((data) => setCheckClassDebug(data as Record<string, unknown>))
-                  .catch(() => setCheckClassDebug({ error: 'request failed' }))
+                const teacherToken = await getTeacherToken()
+                if (!teacherToken) {
+                  setCheckClassDebug({
+                    error: 'no_teacher_session',
+                    message: '無法取得老師登入狀態，請重新整理頁面或重新登入老師帳號後再試。',
+                    your_user_id: null,
+                  })
+                  return
+                }
+                const res = await apiFetch(`/api/teacher/check-class?class_id=${encodeURIComponent(classId)}`, undefined, { token: teacherToken })
+                const data = await res.json().catch(() => ({})) as Record<string, unknown>
+                setCheckClassDebug(data)
               }}
               className="text-sm text-amber-800 underline"
             >
