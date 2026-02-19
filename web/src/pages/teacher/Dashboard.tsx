@@ -58,6 +58,7 @@ export default function Dashboard() {
   const [error, setError] = useState('')
   const [errorUserId, setErrorUserId] = useState<string | null>(null)
   const [fetchedUserId, setFetchedUserId] = useState<string | null>(null)
+  const [checkClassDebug, setCheckClassDebug] = useState<Record<string, unknown> | null>(null)
 
   useEffect(() => {
     if (!classId) {
@@ -70,6 +71,7 @@ export default function Dashboard() {
     setError('')
     setErrorUserId(null)
     setFetchedUserId(null)
+    setCheckClassDebug(null)
 
     async function loadDashboard(retryAfterClaim = false) {
       const res = await apiFetch(`/api/teacher/dashboard?class_id=${encodeURIComponent(classId)}`)
@@ -155,6 +157,28 @@ export default function Dashboard() {
         ) : needFetchUserId ? (
           <UserIdFetcher onUserId={setFetchedUserId} />
         ) : null}
+        {classId && (
+          <div className="mt-4 pt-4 border-t border-red-200">
+            <button
+              type="button"
+              onClick={() => {
+                setCheckClassDebug(null)
+                apiFetch(`/api/teacher/check-class?class_id=${encodeURIComponent(classId)}`)
+                  .then((r) => r.json())
+                  .then((data) => setCheckClassDebug(data as Record<string, unknown>))
+                  .catch(() => setCheckClassDebug({ error: 'request failed' }))
+              }}
+              className="text-sm text-amber-800 underline"
+            >
+              除錯：查看 API 看到的 your_user_id / class_teacher_id
+            </button>
+            {checkClassDebug && (
+              <pre className="mt-2 p-3 bg-white rounded border border-amber-200 text-xs overflow-auto max-h-40">
+                {JSON.stringify(checkClassDebug, null, 2)}
+              </pre>
+            )}
+          </div>
+        )}
       </div>
     )
   }

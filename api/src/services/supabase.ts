@@ -229,7 +229,7 @@ export async function claimClassForTeacher(
   const rows = (await res.json()) as Array<{ id: string; teacher_id: string | null }>
   if (rows.length === 0) return 'owned_by_other'
   const current = rows[0]!.teacher_id
-  if (current != null && (current.toLowerCase() === (teacherId ?? '').toLowerCase())) return 'already_owned'
+  if (current != null && (current.trim().toLowerCase() === (teacherId ?? '').trim().toLowerCase())) return 'already_owned'
   if (current !== null) return 'owned_by_other'
   const patchUrl = `${base}/rest/v1/classes?id=eq.${classId}`
   const patchRes = await supabaseFetch(patchUrl, serviceKey, {
@@ -253,9 +253,9 @@ export async function verifyTeacherOwnsClass(
   const rows = (await res.json()) as Array<{ id: string; teacher_id: string | null }>
   const row = rows[0]
   if (!row) return false
-  const a = (row.teacher_id ?? '').toLowerCase()
-  const b = (teacherId ?? '').toLowerCase()
-  return a === b && a !== ''
+  const a = (row.teacher_id ?? '').trim().toLowerCase()
+  const b = (teacherId ?? '').trim().toLowerCase()
+  return a.length > 0 && a === b
 }
 
 /** 依 class_id 列出學生 */

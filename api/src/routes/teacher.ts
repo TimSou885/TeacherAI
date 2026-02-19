@@ -18,9 +18,9 @@ app.get('/check-class', async (c) => {
   if (!res.ok) return c.json({ message: 'Supabase error' }, 500)
   const rows = (await res.json()) as Array<{ id: string; name: string; teacher_id: string | null }>
   const row = rows[0] ?? null
-  const a = (row?.teacher_id ?? '').toLowerCase()
-  const b = (userId ?? '').toLowerCase()
-  const owns = row ? a === b && a !== '' : false
+  const a = (row?.teacher_id ?? '').trim().toLowerCase()
+  const b = (userId ?? '').trim().toLowerCase()
+  const owns = row ? a.length > 0 && a === b : false
   return c.json({
     api_version: 'teacher-uuid-lowercase-v1',
     your_user_id: userId,
