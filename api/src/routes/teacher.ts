@@ -22,6 +22,7 @@ app.get('/check-class', async (c) => {
   const b = (userId ?? '').toLowerCase()
   const owns = row ? a === b && a !== '' : false
   return c.json({
+    api_version: 'teacher-uuid-lowercase-v1',
     your_user_id: userId,
     class_id: classId,
     class_name: row?.name ?? null,
