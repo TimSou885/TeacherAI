@@ -6,18 +6,26 @@ function UserIdFetcher({ onUserId }: { onUserId: (id: string) => void }) {
   const [id, setId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   useEffect(() => {
-    apiFetch('/api/teacher/me')
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: { user_id?: string } | null) => {
-        if (data?.user_id) {
-          setId(data.user_id)
-          onUserId(data.user_id)
+    import('../../lib/supabase').then(({ supabase }) => supabase.auth.getSession())
+      .then(({ data }) => data?.session?.access_token)
+      .then((token) => {
+        if (!token) {
+          setLoading(false)
+          return
         }
+        return apiFetch('/api/teacher/me')
+          .then((res) => (res.ok ? res.json() : null))
+          .then((data: { user_id?: string } | null) => {
+            if (data?.user_id) {
+              setId(data.user_id)
+              onUserId(data.user_id)
+            }
+          })
       })
       .finally(() => setLoading(false))
   }, [onUserId])
   if (loading) return <p className="text-sm text-amber-700">正在取得您的使用者 ID…</p>
-  if (!id) return <p className="text-sm text-amber-700">無法取得使用者 ID，請重新登入後再試。</p>
+  if (!id) return <p className="text-sm text-amber-700">無法取得使用者 ID（請確認已登入老師帳號並重新整理後再試）。</p>
   return (
     <div className="mt-4 p-4 bg-white rounded-lg border border-red-200">
       <p className="text-sm font-medium text-amber-900 mb-2">請在 Supabase 將此班級的 teacher_id 設為以下 ID：</p>
