@@ -1,8 +1,7 @@
-import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { useState } from 'react'
 import { apiFetch } from '../../lib/api'
+import { useTeacherClass } from '../../contexts/TeacherClassContext'
 
-type ClassItem = { id: string; name: string; join_code: string }
 type Category = 'reading' | 'grammar' | 'vocabulary' | 'dictation' | 'reorder' | 'all'
 
 const CATEGORY_LABELS: Record<Category, string> = {
@@ -15,8 +14,7 @@ const CATEGORY_LABELS: Record<Category, string> = {
 }
 
 export default function Generate() {
-  const [classes, setClasses] = useState<ClassItem[]>([])
-  const [classId, setClassId] = useState('')
+  const { classes, classId } = useTeacherClass()
   const [sourceText, setSourceText] = useState('')
   const [category, setCategory] = useState<Category>('reading')
   const [gradeLevel, setGradeLevel] = useState(3)
@@ -29,24 +27,6 @@ export default function Generate() {
   } | null>(null)
   const [publishTitle, setPublishTitle] = useState('')
   const [publishing, setPublishing] = useState(false)
-
-  useEffect(() => {
-    let cancelled = false
-    apiFetch('/api/classes')
-      .then((res) => {
-        if (!res.ok) throw new Error('無法載入班級')
-        return res.json()
-      })
-      .then((data: { classes?: ClassItem[] }) => {
-        if (!cancelled) setClasses(data.classes ?? [])
-      })
-      .catch((e) => !cancelled && setError(e instanceof Error ? e.message : '載入失敗'))
-    return () => { cancelled = true }
-  }, [])
-
-  useEffect(() => {
-    if (classes.length > 0 && !classId) setClassId(classes[0]!.id)
-  }, [classes, classId])
 
   async function handleGenerate() {
     if (!classId) {
@@ -125,16 +105,12 @@ export default function Generate() {
   }
 
   return (
-    <div className="min-h-screen bg-amber-50 p-6">
-      <div className="max-w-2xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <Link to="/" className="text-amber-700 text-sm underline">← 返回首頁</Link>
-          <h1 className="text-xl font-semibold text-amber-900">AI 出題</h1>
-        </div>
+    <div className="max-w-2xl">
+      <h1 className="text-xl font-semibold text-amber-900 mb-6">AI 出題</h1>
 
-        <div className="bg-white rounded-xl border border-amber-100 p-6 space-y-4 mb-6">
-          <div>
-            <label className="block text-sm font-medium text-amber-900 mb-1">模式</label>
+      <div className="bg-white rounded-xl border border-amber-100 p-6 space-y-4 mb-6">
+        <div>
+          <label className="block text-sm font-medium text-amber-900 mb-1">模式</label>
             <div className="flex gap-3">
               <label className="flex items-center gap-2">
                 <input
@@ -159,22 +135,9 @@ export default function Generate() {
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-amber-900 mb-1">班級</label>
-            <select
-              value={classId}
-              onChange={(e) => setClassId(e.target.value)}
-              className="w-full min-h-[44px] py-2 px-3 rounded-lg border-2 border-amber-200"
-            >
-              {classes.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-              {classes.length === 0 && <option value="">— 尚無班級 —</option>}
-            </select>
-            {classes.length === 0 && (
-              <p className="text-amber-700 text-sm mt-1">請先在 Supabase 建立班級並設定 teacher_id</p>
-            )}
-          </div>
+          {classes.length === 0 && (
+            <p className="text-amber-700 text-sm">請先在 Supabase 建立班級並設定 teacher_id</p>
+          )}
 
           {mode === 'lesson' && (
             <>
@@ -285,7 +248,6 @@ export default function Generate() {
             )}
           </div>
         )}
-      </div>
     </div>
   )
 }

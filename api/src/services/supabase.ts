@@ -200,16 +200,132 @@ export async function getStudentInClass(
   return rows.length > 0 ? rows[0] : null
 }
 
-/** 依 teacher_id 列出班級 */
+/** 依 teacher_id 列出班級（含 teacher_id 為 null 的未認領班級，供老師認領） */
 export async function listClassesByTeacher(
   baseUrl: string,
   serviceKey: string,
   teacherId: string
 ) {
-  const url = `${baseUrl.replace(/\/$/, '')}/rest/v1/classes?teacher_id=eq.${teacherId}&select=id,name,join_code&order=name.asc`
+  const base = baseUrl.replace(/\/$/, '')
+  const orFilter = `or=(teacher_id.eq.${teacherId},teacher_id.is.null)`
+  const url = `${base}/rest/v1/classes?${orFilter}&select=id,name,join_code&order=name.asc`
   const res = await supabaseFetch(url, serviceKey)
   if (!res.ok) throw new Error(`Supabase: ${await res.text()}`)
   return (await res.json()) as Array<{ id: string; name: string; join_code: string }>
+}
+
+/** 老師認領班級（僅當 teacher_id 為 null 時寫入） */
+export async function claimClassForTeacher(
+  baseUrl: string,
+  serviceKey: string,
+  classId: string,
+  teacherId: string
+): Promise<'claimed' | 'already_owned' | 'owned_by_other'> {
+  const base = baseUrl.replace(/\/$/, '')
+  const getUrl = `${base}/rest/v1/classes?id=eq.${classId}&select=id,teacher_id`
+  const res = await supabaseFetch(getUrl, serviceKey)
+  if (!res.ok) return 'owned_by_other'
+  const rows = (await res.json()) as Array<{ id: string; teacher_id: string | null }>
+  if (rows.length === 0) return 'owned_by_other'
+  const current = rows[0]!.teacher_id
+  if (current === teacherId) return 'already_owned'
+  if (current !== null) return 'owned_by_other'
+  const patchUrl = `${base}/rest/v1/classes?id=eq.${classId}`
+  const patchRes = await supabaseFetch(patchUrl, serviceKey, {
+    method: 'PATCH',
+    body: JSON.stringify({ teacher_id: teacherId }),
+    headers: { Prefer: 'return=minimal' },
+  })
+  return patchRes.ok ? 'claimed' : 'owned_by_other'
+}
+
+/** 確認教師是否擁有該班級 */
+export async function verifyTeacherOwnsClass(
+  baseUrl: string,
+  serviceKey: string,
+  classId: string,
+  teacherId: string
+): Promise<boolean> {
+  const url = `${baseUrl.replace(/\/$/, '')}/rest/v1/classes?id=eq.${classId}&teacher_id=eq.${teacherId}&select=id`
+  const res = await supabaseFetch(url, serviceKey)
+  if (!res.ok) return false
+  const rows = (await res.json()) as Array<{ id: string }>
+  return rows.length > 0
+}
+
+/** 依 class_id 列出學生 */
+export async function listStudentsByClassId(
+  baseUrl: string,
+  serviceKey: string,
+  classId: string
+) {
+  const url = `${baseUrl.replace(/\/$/, '')}/rest/v1/students?class_id=eq.${classId}&select=id,name,display_name,grade_level&order=name.asc`
+  const res = await supabaseFetch(url, serviceKey)
+  if (!res.ok) throw new Error(`Supabase: ${await res.text()}`)
+  return (await res.json()) as Array<{
+    id: string
+    name: string
+    display_name: string | null
+    grade_level: number | null
+  }>
+}
+
+/** 班級儀表板統計（今日活躍人數、學生數、練習數、待複習錯題數） */
+export async function getClassDashboardStats(
+  baseUrl: string,
+  serviceKey: string,
+  classId: string
+): Promise<{
+  studentCount: number
+  exerciseCount: number
+  todayActiveCount: number
+  errorBookUnresolvedCount: number
+}> {
+  const todayStart = new Date()
+  todayStart.setUTCHours(0, 0, 0, 0)
+  const todayIso = todayStart.toISOString()
+
+  const [studentsRes, exercisesRes] = await Promise.all([
+    supabaseFetch(
+      `${baseUrl.replace(/\/$/, '')}/rest/v1/students?class_id=eq.${classId}&select=id`,
+      serviceKey
+    ),
+    supabaseFetch(
+      `${baseUrl.replace(/\/$/, '')}/rest/v1/exercises?class_id=eq.${classId}&is_active=eq.true&select=id`,
+      serviceKey
+    ),
+  ])
+  const students = (await studentsRes.json()) as Array<{ id: string }>
+  const exercises = (await exercisesRes.json()) as Array<{ id: string }>
+  const exerciseIds = exercises.map((e) => e.id)
+  const studentCount = students.length
+  const exerciseCount = exerciseIds.length
+
+  let todayActiveCount = 0
+  let errorBookUnresolvedCount = 0
+
+  if (exerciseIds.length > 0) {
+    const attemptsUrl = `${baseUrl.replace(/\/$/, '')}/rest/v1/exercise_attempts?or=(${exerciseIds.map((id) => `exercise_id.eq.${id}`).join(',')})&completed_at=gte.${todayIso}&select=student_id`
+    const attemptsRes = await supabaseFetch(attemptsUrl, serviceKey)
+    if (attemptsRes.ok) {
+      const attempts = (await attemptsRes.json()) as Array<{ student_id: string }>
+      todayActiveCount = new Set(attempts.map((a) => a.student_id)).size
+    }
+
+    const errUrl = `${baseUrl.replace(/\/$/, '')}/rest/v1/error_book?is_resolved=eq.false&or=(${exerciseIds.map((id) => `exercise_id.eq.${id}`).join(',')})&select=id`
+    const errRes = await supabaseFetch(errUrl, serviceKey)
+    if (errRes.ok) {
+      const errRows = (await errRes.json()) as Array<{ id: string }>
+      errorBookUnresolvedCount = errRows.length
+    }
+  }
+
+  return {
+    studentCount,
+    exerciseCount,
+    todayActiveCount,
+    errorBookUnresolvedCount,
+  }
 }
 
 /** 依 class_id 列出練習（可選 category，如 dictation） */

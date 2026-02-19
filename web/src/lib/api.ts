@@ -1,7 +1,9 @@
 const rawApiUrl = (import.meta.env.VITE_API_URL ?? '').trim()
-export const API_URL = rawApiUrl && !/^https?:\/\//i.test(rawApiUrl)
+const fromEnv = rawApiUrl && !/^https?:\/\//i.test(rawApiUrl)
   ? `https://${rawApiUrl.replace(/^\/+/, '')}`
   : rawApiUrl
+// 開發時若未設定 VITE_API_URL，直接連 localhost:8787，避免經 Vite proxy 時發生 401
+export const API_URL = fromEnv || (import.meta.env.DEV ? 'http://localhost:8787' : '')
 
 const STUDENT_STORAGE_KEY = 'eduspark_student'
 

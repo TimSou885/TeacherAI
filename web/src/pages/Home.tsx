@@ -40,7 +40,13 @@ export default function Home() {
               進入 AI 對話
             </Link>
             <Link
-              to="/generate"
+              to="/teacher"
+              className="inline-block w-full py-3 px-4 rounded-xl border-2 border-amber-400 text-amber-800 font-medium hover:bg-amber-50 transition mb-3"
+            >
+              教師工作區
+            </Link>
+            <Link
+              to="/teacher/generate"
               className="inline-block w-full py-3 px-4 rounded-xl border-2 border-amber-400 text-amber-800 font-medium hover:bg-amber-50 transition"
             >
               AI 出題

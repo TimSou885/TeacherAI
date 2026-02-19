@@ -64,7 +64,7 @@ app.post('/chat', async (c) => {
   if (c.env.VECTORIZE && endpoint && apiKey) {
     try {
       const embedding = await getEmbedding(endpoint, apiKey, message)
-      const matches = await queryRag(c.env.VECTORIZE, embedding, 3)
+      const matches = await queryRag(c.env.VECTORIZE, embedding, 5)
       ragContext = matches.map((m) => m.metadata?.text).filter(Boolean).join('\n\n')
     } catch {
       // RAG 失敗不影響對話，略過

@@ -1,0 +1,115 @@
+import { Hono } from 'hono'
+import * as supabase from '../services/supabase'
+import type { Env } from '../index'
+import type { AuthVariables } from '../middleware/auth'
+
+const app = new Hono<{ Bindings: Env; Variables: AuthVariables }>()
+
+/** GET /api/teacher/me — 回傳目前登入老師的 user_id（用於顯示「請設 teacher_id」時） */
+app.get('/me', async (c) => {
+  if (c.get('studentId')) {
+    return c.json({ message: 'Teachers only' }, 403)
+  }
+  const userId = c.get('userId')
+  if (!userId) return c.json({ message: 'Unauthorized' }, 401)
+  return c.json({ user_id: userId })
+})
+
+/** GET /api/teacher/dashboard?class_id=xxx — 班級儀表板統計（僅教師且須擁有該班） */
+app.get('/dashboard', async (c) => {
+  const studentId = c.get('studentId')
+  if (studentId) {
+    // #region agent log
+    fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5fd7ac'},body:JSON.stringify({sessionId:'5fd7ac',location:'teacher.ts:dashboard',message:'dashboard 403 student',data:{},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
+    // #endregion
+    return c.json({ message: 'Teachers only', code: 'student_forbidden' }, 403)
+  }
+  const userId = c.get('userId')
+  const classId = c.req.query('class_id')
+  if (!classId) {
+    // #region agent log
+    fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5fd7ac'},body:JSON.stringify({sessionId:'5fd7ac',location:'teacher.ts:dashboard',message:'dashboard 400 no class_id',data:{},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+    // #endregion
+    return c.json({ message: 'class_id required' }, 400)
+  }
+
+  const baseUrl = c.env.SUPABASE_URL
+  const serviceKey = c.env.SUPABASE_SERVICE_ROLE_KEY
+
+  const owns = await supabase.verifyTeacherOwnsClass(baseUrl, serviceKey, classId, userId)
+  // #region agent log
+  fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5fd7ac'},body:JSON.stringify({sessionId:'5fd7ac',location:'teacher.ts:dashboard',message:'dashboard owns check',data:{userId:userId??null,classId,owns},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
+  // #endregion
+  if (!owns) {
+    fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5fd7ac'},body:JSON.stringify({sessionId:'5fd7ac',location:'teacher.ts:dashboard',message:'dashboard 404 not owner',data:{classId,userId:userId??null},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
+    return c.json({
+      message: '此班級不存在或您沒有權限查看。若班級剛建立，請在 Supabase 將該班級的 teacher_id 設為您的使用者 ID。',
+      code: 'class_not_owned',
+      your_user_id: userId,
+    }, 404)
+  }
+
+  try {
+    const stats = await supabase.getClassDashboardStats(baseUrl, serviceKey, classId)
+    return c.json(stats)
+  } catch (e) {
+    // #region agent log
+    fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5fd7ac'},body:JSON.stringify({sessionId:'5fd7ac',location:'teacher.ts:dashboard',message:'dashboard 500 getClassDashboardStats',data:{err:String((e as Error)?.message)},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
+    // #endregion
+    return c.json({ message: (e as Error).message }, 500)
+  }
+})
+
+/** POST /api/teacher/claim-class — 認領班級（僅當 teacher_id 為 null 時寫入） */
+app.post('/claim-class', async (c) => {
+  if (c.get('studentId')) {
+    return c.json({ message: 'Teachers only', code: 'student_forbidden' }, 403)
+  }
+  const userId = c.get('userId')
+  let body: { class_id?: string }
+  try {
+    body = (await c.req.json()) as { class_id?: string }
+  } catch {
+    return c.json({ message: 'Invalid JSON' }, 400)
+  }
+  const classId = body.class_id
+  if (!classId) return c.json({ message: 'class_id required' }, 400)
+
+  const baseUrl = c.env.SUPABASE_URL
+  const serviceKey = c.env.SUPABASE_SERVICE_ROLE_KEY
+  const result = await supabase.claimClassForTeacher(baseUrl, serviceKey, classId, userId)
+
+  if (result === 'owned_by_other') {
+    return c.json({
+      message: '此班級已由其他老師負責，無法認領。若您應為負責老師，請在 Supabase 的 classes 表將該班級的 teacher_id 設為您的使用者 ID。',
+      code: 'owned_by_other',
+      your_user_id: userId,
+    }, 403)
+  }
+  return c.json({ claimed: result === 'claimed' })
+})
+
+/** GET /api/teacher/students?class_id=xxx — 班級學生列表（僅教師且須擁有該班） */
+app.get('/students', async (c) => {
+  if (c.get('studentId')) {
+    return c.json({ message: 'Teachers only', code: 'student_forbidden' }, 403)
+  }
+  const userId = c.get('userId')
+  const classId = c.req.query('class_id')
+  if (!classId) return c.json({ message: 'class_id required' }, 400)
+
+  const baseUrl = c.env.SUPABASE_URL
+  const serviceKey = c.env.SUPABASE_SERVICE_ROLE_KEY
+
+  const owns = await supabase.verifyTeacherOwnsClass(baseUrl, serviceKey, classId, userId)
+  if (!owns) return c.json({ message: 'Class not found or access denied' }, 404)
+
+  try {
+    const students = await supabase.listStudentsByClassId(baseUrl, serviceKey, classId)
+    return c.json({ students })
+  } catch (e) {
+    return c.json({ message: (e as Error).message }, 500)
+  }
+})
+
+export const teacherRoutes = app

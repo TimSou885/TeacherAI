@@ -1,5 +1,11 @@
 import { useState, useEffect } from 'react'
 
+/** 移除句首／句尾多餘的單引號與空白（解析題目時 ' ' 會殘留） */
+function stripSentenceQuotes(s: string): string {
+  if (typeof s !== 'string') return ''
+  return s.replace(/^['\s]+|['\s]+$/g, '').trim()
+}
+
 function parseSentencesFromQuestion(q: string): string[] {
   if (!q || typeof q !== 'string') return []
   const content = q.includes('：') ? q.split('：')[1] ?? q : q.includes(':') ? q.split(':')[1] ?? q : q
@@ -19,9 +25,9 @@ export default function ReorderQuestion({
   value: unknown
   onChange: (v: unknown) => void
 }) {
-  const fromSentences = (question.sentences ?? []) as string[]
-  const fromOptions = Array.isArray(question.options) ? (question.options as string[]) : []
-  const fromParse = parseSentencesFromQuestion(question.question ?? '')
+  const fromSentences = ((question.sentences ?? []) as string[]).map(stripSentenceQuotes)
+  const fromOptions = (Array.isArray(question.options) ? (question.options as string[]) : []).map(stripSentenceQuotes)
+  const fromParse = parseSentencesFromQuestion(question.question ?? '').map(stripSentenceQuotes)
   const sentences = fromSentences.length > 0 ? fromSentences : fromOptions.length > 0 ? fromOptions : fromParse
   const currentOrder = (Array.isArray(value) ? value : []) as number[]
   const order = currentOrder.length > sentences.length ? currentOrder.slice(0, sentences.length) : currentOrder

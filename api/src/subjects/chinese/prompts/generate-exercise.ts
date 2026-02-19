@@ -70,5 +70,6 @@ ${params.errorSummary}
 請根據這些錯題，生成 ${params.questionCount} 道複習題，涵蓋不同範疇（閱讀理解、語文基礎、詞語運用、默書、排句成段）。
 每道題要針對學生常錯的類型設計。輸出格式為 JSON 陣列，每題物件包含 type、question、options（若選擇題）、correct 等欄位。
 題型可混用：multiple_choice、fill_blank、true_false、short_answer、reorder、matching。
+**標點符號題**：若為「請填入正確標點」的填空題，必須加上 "display_type":"填標點符號"，例：{"type":"fill_blank","display_type":"填標點符號","question":"媽媽說____你今天乖不乖____（請填入正確標點）","correct":"：「」","hint":"..."}，這樣學生端會顯示標點點選列而非純文字輸入。
 只輸出 JSON 陣列，不要其他說明。`
 }

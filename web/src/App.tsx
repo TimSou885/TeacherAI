@@ -4,6 +4,10 @@ import { hasSupabaseEnv } from './lib/supabase'
 import { getStudentSession } from './lib/api'
 import Home from './pages/Home'
 import Login from './pages/auth/Login'
+import TeacherLayout from './pages/teacher/TeacherLayout'
+import Dashboard from './pages/teacher/Dashboard'
+import Students from './pages/teacher/Students'
+import Content from './pages/teacher/Content'
 import Generate from './pages/teacher/Generate'
 import Chat from './pages/student/Chat'
 import StudentLogin from './pages/student/StudentLogin'
@@ -53,14 +57,20 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+        <Route path="/generate" element={<Navigate to="/teacher/generate" replace />} />
         <Route
-          path="/generate"
+          path="/teacher"
           element={
             <ProtectedRoute>
-              <Generate />
+              <TeacherLayout />
             </ProtectedRoute>
           }
-        />
+        >
+          <Route index element={<Dashboard />} />
+          <Route path="students" element={<Students />} />
+          <Route path="content" element={<Content />} />
+          <Route path="generate" element={<Generate />} />
+        </Route>
         <Route path="/student" element={<StudentLogin />} />
         <Route path="/student/home" element={<StudentProtectedRoute><StudentHome /></StudentProtectedRoute>}>
           <Route index element={<Navigate to="/student/home/chat" replace />} />
