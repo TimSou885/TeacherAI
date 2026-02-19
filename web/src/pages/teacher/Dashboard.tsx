@@ -2,6 +2,18 @@ import { useState, useEffect } from 'react'
 import { apiFetch } from '../../lib/api'
 import { useTeacherClass } from '../../contexts/TeacherClassContext'
 
+/** 從 JWT 解出 sub（使用者 ID），僅用於顯示，不驗證簽章 */
+function getUserIdFromJwt(token: string): string | null {
+  try {
+    const parts = token.split('.')
+    if (parts.length !== 3) return null
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'))) as { sub?: string }
+    return payload.sub ?? null
+  } catch {
+    return null
+  }
+}
+
 function UserIdFetcher({ onUserId }: { onUserId: (id: string) => void }) {
   const [id, setId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -9,18 +21,11 @@ function UserIdFetcher({ onUserId }: { onUserId: (id: string) => void }) {
     import('../../lib/supabase').then(({ supabase }) => supabase.auth.getSession())
       .then(({ data }) => data?.session?.access_token)
       .then((token) => {
-        if (!token) {
-          setLoading(false)
-          return
+        const uid = token ? getUserIdFromJwt(token) : null
+        if (uid) {
+          setId(uid)
+          onUserId(uid)
         }
-        return apiFetch('/api/teacher/me')
-          .then((res) => (res.ok ? res.json() : null))
-          .then((data: { user_id?: string } | null) => {
-            if (data?.user_id) {
-              setId(data.user_id)
-              onUserId(data.user_id)
-            }
-          })
       })
       .finally(() => setLoading(false))
   }, [onUserId])
