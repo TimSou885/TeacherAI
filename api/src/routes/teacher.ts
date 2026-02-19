@@ -8,7 +8,8 @@ const app = new Hono<{ Bindings: Env; Variables: AuthVariables }>()
 /** GET /api/teacher/check-class?class_id=xxx — 除錯：回傳此班級 teacher_id 與目前老師是否擁有 */
 app.get('/check-class', async (c) => {
   if (c.get('studentId')) return c.json({ message: 'Teachers only' }, 403)
-  const userId = c.get('userId')
+  const userId = c.get('userId') ?? null
+  if (!userId) return c.json({ message: 'Unauthorized', your_user_id: null }, 401)
   const classId = c.req.query('class_id')
   if (!classId) return c.json({ message: 'class_id required' }, 400)
   const baseUrl = c.env.SUPABASE_URL
@@ -19,7 +20,7 @@ app.get('/check-class', async (c) => {
   const rows = (await res.json()) as Array<{ id: string; name: string; teacher_id: string | null }>
   const row = rows[0] ?? null
   const a = (row?.teacher_id ?? '').trim().toLowerCase()
-  const b = (userId ?? '').trim().toLowerCase()
+  const b = userId.trim().toLowerCase()
   const owns = row ? a.length > 0 && a === b : false
   return c.json({
     api_version: 'teacher-uuid-lowercase-v1',
