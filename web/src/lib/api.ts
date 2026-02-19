@@ -68,8 +68,15 @@ async function getToken(preferStudent?: boolean): Promise<string | null> {
   return student?.token ?? null
 }
 
+/** 教師 Layout 掛載時寫入，供 getTeacherToken 優先使用（避免 getSession 時序問題） */
+let cachedTeacherToken: string | null = null
+export function setCachedTeacherToken(token: string | null): void {
+  cachedTeacherToken = token
+}
+
 /** 僅回傳 Supabase 老師 session token（不 fallback 學生），供教師 API 使用 */
 export async function getTeacherToken(): Promise<string | null> {
+  if (cachedTeacherToken) return cachedTeacherToken
   const { data: { session } } = await import('../lib/supabase').then(m => m.supabase.auth.getSession())
   return session?.access_token ?? null
 }

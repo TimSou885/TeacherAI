@@ -1,5 +1,7 @@
+import { useEffect, useState } from 'react'
 import { Link, Outlet, NavLink } from 'react-router-dom'
-import { apiFetch } from '../../lib/api'
+import { apiFetch, setCachedTeacherToken } from '../../lib/api'
+import { supabase } from '../../lib/supabase'
 import { TeacherClassProvider, useTeacherClass, type ClassItem } from '../../contexts/TeacherClassContext'
 
 async function fetchClasses(): Promise<ClassItem[]> {
@@ -77,10 +79,29 @@ function TeacherNav() {
   )
 }
 
-export default function TeacherLayout() {
+function TeacherLayoutInner() {
+  const [ready, setReady] = useState(false)
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setCachedTeacherToken(session?.access_token ?? null)
+      setReady(true)
+    })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setCachedTeacherToken(session?.access_token ?? null)
+    })
+    return () => {
+      subscription.unsubscribe()
+      setCachedTeacherToken(null)
+    }
+  }, [])
+  if (!ready) return <div className="p-8 text-center text-amber-800">載入中…</div>
   return (
     <TeacherClassProvider fetchClasses={fetchClasses}>
       <TeacherNav />
     </TeacherClassProvider>
   )
+}
+
+export default function TeacherLayout() {
+  return <TeacherLayoutInner />
 }
