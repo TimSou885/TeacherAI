@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 
 /** 移除句首／句尾多餘的單引號與空白（解析題目時 ' ' 會殘留） */
 function stripSentenceQuotes(s: string): string {
