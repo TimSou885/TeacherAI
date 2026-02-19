@@ -63,9 +63,6 @@ export default function Dashboard() {
     if (!classId) {
       setStats(null)
       setLoading(classes.length === 0)
-      // #region agent log
-      fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5fd7ac'},body:JSON.stringify({sessionId:'5fd7ac',location:'Dashboard.tsx:useEffect',message:'dashboard skip no classId',data:{classId:classId||null,classesLen:classes.length},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
-      // #endregion
       return
     }
     let cancelled = false
@@ -75,14 +72,8 @@ export default function Dashboard() {
     setFetchedUserId(null)
 
     async function loadDashboard(retryAfterClaim = false) {
-      // #region agent log
-      if (!retryAfterClaim) fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5fd7ac'},body:JSON.stringify({sessionId:'5fd7ac',location:'Dashboard.tsx:fetch',message:'dashboard request',data:{classId},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
-      // #endregion
       const res = await apiFetch(`/api/teacher/dashboard?class_id=${encodeURIComponent(classId)}`)
       const data = await res.json().catch(() => ({})) as { message?: string; code?: string }
-      // #region agent log
-      fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5fd7ac'},body:JSON.stringify({sessionId:'5fd7ac',location:'Dashboard.tsx:then',message:'dashboard response',data:{status:res.status,ok:res.ok},timestamp:Date.now(),hypothesisId:'H2,H4,H5'})}).catch(()=>{});
-      // #endregion
       if (res.ok) {
         if (!cancelled) setStats(data as DashboardStats)
         return
@@ -119,9 +110,6 @@ export default function Dashboard() {
 
     loadDashboard()
       .catch((e) => {
-        // #region agent log
-        fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5fd7ac'},body:JSON.stringify({sessionId:'5fd7ac',location:'Dashboard.tsx:catch',message:'dashboard error',data:{msg:String(e?.message||e)},timestamp:Date.now(),hypothesisId:'H5'})}).catch(()=>{});
-        // #endregion
         if (!cancelled) {
           setError(e instanceof Error ? e.message : '載入失敗')
           setErrorUserId(null)

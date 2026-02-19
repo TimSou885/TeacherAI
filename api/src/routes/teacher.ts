@@ -5,6 +5,31 @@ import type { AuthVariables } from '../middleware/auth'
 
 const app = new Hono<{ Bindings: Env; Variables: AuthVariables }>()
 
+/** GET /api/teacher/check-class?class_id=xxx — 除錯：回傳此班級 teacher_id 與目前老師是否擁有 */
+app.get('/check-class', async (c) => {
+  if (c.get('studentId')) return c.json({ message: 'Teachers only' }, 403)
+  const userId = c.get('userId')
+  const classId = c.req.query('class_id')
+  if (!classId) return c.json({ message: 'class_id required' }, 400)
+  const baseUrl = c.env.SUPABASE_URL
+  const serviceKey = c.env.SUPABASE_SERVICE_ROLE_KEY
+  const url = `${baseUrl.replace(/\/$/, '')}/rest/v1/classes?id=eq.${classId}&select=id,name,teacher_id`
+  const res = await supabase.supabaseFetch(url, serviceKey)
+  if (!res.ok) return c.json({ message: 'Supabase error' }, 500)
+  const rows = (await res.json()) as Array<{ id: string; name: string; teacher_id: string | null }>
+  const row = rows[0] ?? null
+  const a = (row?.teacher_id ?? '').toLowerCase()
+  const b = (userId ?? '').toLowerCase()
+  const owns = row ? a === b && a !== '' : false
+  return c.json({
+    your_user_id: userId,
+    class_id: classId,
+    class_name: row?.name ?? null,
+    class_teacher_id: row?.teacher_id ?? null,
+    owns,
+  })
+})
+
 /** GET /api/teacher/me — 回傳目前登入老師的 user_id（用於顯示「請設 teacher_id」時） */
 app.get('/me', async (c) => {
   if (c.get('studentId')) {
@@ -19,17 +44,11 @@ app.get('/me', async (c) => {
 app.get('/dashboard', async (c) => {
   const studentId = c.get('studentId')
   if (studentId) {
-    // #region agent log
-    fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5fd7ac'},body:JSON.stringify({sessionId:'5fd7ac',location:'teacher.ts:dashboard',message:'dashboard 403 student',data:{},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
-    // #endregion
     return c.json({ message: 'Teachers only', code: 'student_forbidden' }, 403)
   }
   const userId = c.get('userId')
   const classId = c.req.query('class_id')
   if (!classId) {
-    // #region agent log
-    fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5fd7ac'},body:JSON.stringify({sessionId:'5fd7ac',location:'teacher.ts:dashboard',message:'dashboard 400 no class_id',data:{},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
-    // #endregion
     return c.json({ message: 'class_id required' }, 400)
   }
 
@@ -37,11 +56,7 @@ app.get('/dashboard', async (c) => {
   const serviceKey = c.env.SUPABASE_SERVICE_ROLE_KEY
 
   const owns = await supabase.verifyTeacherOwnsClass(baseUrl, serviceKey, classId, userId)
-  // #region agent log
-  fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5fd7ac'},body:JSON.stringify({sessionId:'5fd7ac',location:'teacher.ts:dashboard',message:'dashboard owns check',data:{userId:userId??null,classId,owns},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
-  // #endregion
   if (!owns) {
-    fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5fd7ac'},body:JSON.stringify({sessionId:'5fd7ac',location:'teacher.ts:dashboard',message:'dashboard 404 not owner',data:{classId,userId:userId??null},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
     return c.json({
       message: '此班級不存在或您沒有權限查看。若班級剛建立，請在 Supabase 將該班級的 teacher_id 設為您的使用者 ID。',
       code: 'class_not_owned',
@@ -53,9 +68,6 @@ app.get('/dashboard', async (c) => {
     const stats = await supabase.getClassDashboardStats(baseUrl, serviceKey, classId)
     return c.json(stats)
   } catch (e) {
-    // #region agent log
-    fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5fd7ac'},body:JSON.stringify({sessionId:'5fd7ac',location:'teacher.ts:dashboard',message:'dashboard 500 getClassDashboardStats',data:{err:String((e as Error)?.message)},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
-    // #endregion
     return c.json({ message: (e as Error).message }, 500)
   }
 })

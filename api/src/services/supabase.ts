@@ -200,14 +200,15 @@ export async function getStudentInClass(
   return rows.length > 0 ? rows[0] : null
 }
 
-/** 依 teacher_id 列出班級（含 teacher_id 為 null 的未認領班級，供老師認領） */
+/** 依 teacher_id 列出班級（含 teacher_id 為 null 的未認領班級，供老師認領；UUID 以小寫比對） */
 export async function listClassesByTeacher(
   baseUrl: string,
   serviceKey: string,
   teacherId: string
 ) {
   const base = baseUrl.replace(/\/$/, '')
-  const orFilter = `or=(teacher_id.eq.${teacherId},teacher_id.is.null)`
+  const tid = (teacherId ?? '').toLowerCase()
+  const orFilter = tid ? `or=(teacher_id.eq.${tid},teacher_id.is.null)` : `teacher_id=is.null`
   const url = `${base}/rest/v1/classes?${orFilter}&select=id,name,join_code&order=name.asc`
   const res = await supabaseFetch(url, serviceKey)
   if (!res.ok) throw new Error(`Supabase: ${await res.text()}`)
@@ -228,7 +229,7 @@ export async function claimClassForTeacher(
   const rows = (await res.json()) as Array<{ id: string; teacher_id: string | null }>
   if (rows.length === 0) return 'owned_by_other'
   const current = rows[0]!.teacher_id
-  if (current === teacherId) return 'already_owned'
+  if (current != null && (current.toLowerCase() === (teacherId ?? '').toLowerCase())) return 'already_owned'
   if (current !== null) return 'owned_by_other'
   const patchUrl = `${base}/rest/v1/classes?id=eq.${classId}`
   const patchRes = await supabaseFetch(patchUrl, serviceKey, {
@@ -239,18 +240,22 @@ export async function claimClassForTeacher(
   return patchRes.ok ? 'claimed' : 'owned_by_other'
 }
 
-/** 確認教師是否擁有該班級 */
+/** 確認教師是否擁有該班級（UUID 比對不區分大小寫） */
 export async function verifyTeacherOwnsClass(
   baseUrl: string,
   serviceKey: string,
   classId: string,
   teacherId: string
 ): Promise<boolean> {
-  const url = `${baseUrl.replace(/\/$/, '')}/rest/v1/classes?id=eq.${classId}&teacher_id=eq.${teacherId}&select=id`
+  const url = `${baseUrl.replace(/\/$/, '')}/rest/v1/classes?id=eq.${classId}&select=id,teacher_id`
   const res = await supabaseFetch(url, serviceKey)
   if (!res.ok) return false
-  const rows = (await res.json()) as Array<{ id: string }>
-  return rows.length > 0
+  const rows = (await res.json()) as Array<{ id: string; teacher_id: string | null }>
+  const row = rows[0]
+  if (!row) return false
+  const a = (row.teacher_id ?? '').toLowerCase()
+  const b = (teacherId ?? '').toLowerCase()
+  return a === b && a !== ''
 }
 
 /** 依 class_id 列出學生 */
