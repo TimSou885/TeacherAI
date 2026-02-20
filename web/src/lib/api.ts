@@ -112,6 +112,11 @@ export async function apiFetch(
     : options?.preferTeacher
       ? await getTeacherToken()
       : await getToken(options?.preferStudent)
+  // #region agent log
+  if (options?.preferTeacher && (path.includes('dashboard') || path.includes('exercises'))) {
+    fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5fd7ac'},body:JSON.stringify({sessionId:'5fd7ac',location:'api.ts:apiFetch',message:'teacher request',data:{path,hasToken:!!token,hdrLen:token?token.length:0},hypothesisId:'H1',runId:'preferTeacher',timestamp:Date.now()})}).catch(()=>{});
+  }
+  // #endregion
   const url = path.startsWith('http') ? path : `${API_URL}${path}`
   const headers = new Headers(init?.headers)
   if (token) headers.set('Authorization', `Bearer ${token}`)

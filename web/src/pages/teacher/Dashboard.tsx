@@ -76,6 +76,10 @@ export default function Dashboard() {
     setSessionDiagnostic(null)
 
     async function loadDashboard(retryAfterClaim = false) {
+      // #region agent log
+      const tokenAtCall = await getTeacherToken()
+      fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5fd7ac'},body:JSON.stringify({sessionId:'5fd7ac',location:'Dashboard.tsx:loadDashboard',message:'loadDashboard start',data:{classId,hasToken:!!tokenAtCall},hypothesisId:'H1',timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       const res = await apiFetch(`/api/teacher/dashboard?class_id=${encodeURIComponent(classId)}`, undefined, { preferTeacher: true })
       const data = await res.json().catch(() => ({})) as { message?: string; code?: string }
       if (res.ok) {
@@ -83,6 +87,9 @@ export default function Dashboard() {
         return
       }
       if (res.status === 401 && !cancelled) {
+        // #region agent log
+        fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5fd7ac'},body:JSON.stringify({sessionId:'5fd7ac',location:'Dashboard.tsx:401',message:'dashboard 401 response',data:{code:(data as { code?: string }).code},hypothesisId:'H2',timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
         setError('未登入或登入已過期，請重新登入老師帳號後再試。')
         setErrorUserId(null)
         setFetchedUserId(null)
