@@ -61,6 +61,9 @@ app.post('/join', async (c) => {
   if (!session) return c.json({ message: '無效或已結束的課堂代碼', code: 'invalid_code' }, 404)
 
   const result = await supabase.joinLiveSession(baseUrl, serviceKey, session.id, studentId)
+  // #region agent log
+  fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5fd7ac'},body:JSON.stringify({sessionId:'5fd7ac',location:'live.ts:join',message:'joinResult',data:{sessionClassId:session.class_id,studentId,result,status:session.status},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
+  // #endregion
   if (result === 'wrong_class') {
     return c.json({ message: '您不在本班，無法加入此課堂測驗', code: 'wrong_class' }, 403)
   }
