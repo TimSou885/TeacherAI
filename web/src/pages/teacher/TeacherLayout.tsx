@@ -91,9 +91,6 @@ function TeacherLayoutInner() {
     })
     return () => {
       subscription.unsubscribe()
-      // #region agent log
-      fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5fd7ac'},body:JSON.stringify({sessionId:'5fd7ac',location:'TeacherLayout.tsx:cleanup',message:'cache cleared on unmount',data:{},hypothesisId:'H3',timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       setCachedTeacherToken(null)
     }
   }, [])
