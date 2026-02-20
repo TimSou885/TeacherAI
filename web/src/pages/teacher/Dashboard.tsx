@@ -59,6 +59,7 @@ export default function Dashboard() {
   const [errorUserId, setErrorUserId] = useState<string | null>(null)
   const [fetchedUserId, setFetchedUserId] = useState<string | null>(null)
   const [checkClassDebug, setCheckClassDebug] = useState<Record<string, unknown> | null>(null)
+  const [sessionDiagnostic, setSessionDiagnostic] = useState<{ hasSession: boolean; hasTeacherToken: boolean } | null>(null)
 
   useEffect(() => {
     if (!classId) {
@@ -72,6 +73,7 @@ export default function Dashboard() {
     setErrorUserId(null)
     setFetchedUserId(null)
     setCheckClassDebug(null)
+    setSessionDiagnostic(null)
 
     async function loadDashboard(retryAfterClaim = false) {
       const res = await apiFetch(`/api/teacher/dashboard?class_id=${encodeURIComponent(classId)}`, undefined, { preferTeacher: true })
@@ -152,9 +154,33 @@ export default function Dashboard() {
       <div className="rounded-xl bg-red-50 border border-red-200 p-6 text-red-700 space-y-4">
         <p>{error}</p>
         {isUnauthorized && (
-          <p>
-            <a href="/teacher/login" className="font-medium text-amber-700 underline hover:text-amber-800">請點此重新登入老師帳號</a>
-          </p>
+          <>
+            <p>
+              <a href="/teacher/login" className="font-medium text-amber-700 underline hover:text-amber-800">請點此重新登入老師帳號</a>
+            </p>
+            <p className="text-sm">
+              <button
+                type="button"
+                onClick={async () => {
+                  const { supabase } = await import('../../lib/supabase')
+                  const { data: { session } } = await supabase.auth.getSession()
+                  const token = await getTeacherToken()
+                  setSessionDiagnostic({
+                    hasSession: !!(session?.access_token),
+                    hasTeacherToken: !!token,
+                  })
+                }}
+                className="text-amber-800 underline"
+              >
+                檢查前端 session / token
+              </button>
+              {sessionDiagnostic && (
+                <span className="ml-2 text-amber-900">
+                  Supabase session: {sessionDiagnostic.hasSession ? '有' : '無'}，getTeacherToken: {sessionDiagnostic.hasTeacherToken ? '有' : '無'}
+                </span>
+              )}
+            </p>
+          </>
         )}
         {showUserIdBlock ? (
           <div className="mt-4 p-4 bg-white rounded-lg border border-red-200">

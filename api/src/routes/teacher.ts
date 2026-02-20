@@ -9,7 +9,7 @@ const app = new Hono<{ Bindings: Env; Variables: AuthVariables }>()
 app.get('/check-class', async (c) => {
   if (c.get('studentId')) return c.json({ message: 'Teachers only' }, 403)
   const userId = c.get('userId') ?? null
-  if (!userId) return c.json({ message: 'Unauthorized', your_user_id: null }, 401)
+  if (!userId) return c.json({ message: 'Unauthorized', code: 'missing_teacher_id', your_user_id: null }, 401)
   const classId = c.req.query('class_id')
   if (!classId) return c.json({ message: 'class_id required' }, 400)
   const baseUrl = c.env.SUPABASE_URL
