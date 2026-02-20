@@ -879,15 +879,17 @@ export async function joinLiveSession(
   serviceKey: string,
   sessionId: string,
   studentId: string
-): Promise<'ok' | 'already_joined' | 'wrong_class'> {
+): Promise<'ok' | 'already_joined' | 'wrong_class' | 'session_not_waiting'> {
   const base = baseUrl.replace(/\/$/, '')
   const sessionUrl = `${base}/rest/v1/live_sessions?id=eq.${sessionId}&select=class_id,status`
   const sessionRes = await supabaseFetch(sessionUrl, serviceKey)
-  if (!sessionRes.ok) return 'wrong_class'
+  if (!sessionRes.ok) return 'session_not_waiting'
   const sessions = (await sessionRes.json()) as Array<{ class_id: string; status: string }>
   const session = sessions[0]
-  if (!session || session.status !== 'waiting') return 'wrong_class'
-  const studentUrl = `${base}/rest/v1/students?id=eq.${studentId}&class_id=eq.${session.class_id}&select=id`
+  if (!session || session.status !== 'waiting') return 'session_not_waiting'
+  const classId = (session.class_id ?? '').toLowerCase()
+  const sid = (studentId ?? '').toLowerCase()
+  const studentUrl = `${base}/rest/v1/students?id=eq.${sid}&class_id=eq.${classId}&select=id`
   const studentRes = await supabaseFetch(studentUrl, serviceKey)
   if (!studentRes.ok) return 'wrong_class'
   const students = (await studentRes.json()) as Array<{ id: string }>

@@ -106,7 +106,8 @@ export default function Join() {
         // #region agent log
         fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5fd7ac'},body:JSON.stringify({sessionId:'5fd7ac',location:'Join.tsx:joinFailed',message:'joinFailed',data:{status:res.status,code:data.code,message:data.message},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
         // #endregion
-        setError(data.message ?? '加入失敗')
+        const msg = data.message ?? '加入失敗'
+        setError(data.code ? `${msg} [${data.code}]` : msg)
         return
       }
       const exerciseId = data.exercise_id ?? ''
