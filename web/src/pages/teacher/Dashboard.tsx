@@ -147,9 +147,15 @@ export default function Dashboard() {
     const needFetchUserId =
       !showUserIdBlock &&
       (error.includes('teacher_id') || error.includes('使用者 ID') || error.includes('已由其他老師負責'))
+    const isUnauthorized = error.includes('未登入') || error.includes('登入已過期')
     return (
       <div className="rounded-xl bg-red-50 border border-red-200 p-6 text-red-700 space-y-4">
         <p>{error}</p>
+        {isUnauthorized && (
+          <p>
+            <a href="/teacher/login" className="font-medium text-amber-700 underline hover:text-amber-800">請點此重新登入老師帳號</a>
+          </p>
+        )}
         {showUserIdBlock ? (
           <div className="mt-4 p-4 bg-white rounded-lg border border-red-200">
             <p className="text-sm font-medium text-amber-900 mb-2">請在 Supabase 將此班級的 teacher_id 設為以下 ID：</p>
