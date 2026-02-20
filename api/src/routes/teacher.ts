@@ -1,9 +1,13 @@
 import { Hono } from 'hono'
 import * as supabase from '../services/supabase'
+import { authMiddleware } from '../middleware/auth'
 import type { Env } from '../index'
 import type { AuthVariables } from '../middleware/auth'
 
 const app = new Hono<{ Bindings: Env; Variables: AuthVariables }>()
+
+// 在子 app 內再跑一次 auth，確保 handler 能讀到 userId（主 app 僅 Bindings 時 context 可能未傳遞 Variables）
+app.use('*', authMiddleware)
 
 /** GET /api/teacher/check-class?class_id=xxx — 除錯：回傳此班級 teacher_id 與目前老師是否擁有 */
 app.get('/check-class', async (c) => {
