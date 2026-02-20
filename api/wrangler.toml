@@ -27,3 +27,7 @@ bucket_name = "teacherai-tts"
 [[vectorize]]
 binding = "VECTORIZE"
 index_name = "teacherai-embeddings"
+
+# 每晚 23:00 UTC 執行 AI 對話掃描
+[triggers]
+crons = ["0 23 * * *"]

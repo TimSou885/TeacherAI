@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { chatComplete } from '../services/azure-openai'
+import { logCost, estimateTokens } from '../services/cost-tracker'
 import type { Env } from '../index'
 import type { AuthVariables } from '../middleware/auth'
 
@@ -50,6 +51,11 @@ app.post('/score', async (c) => {
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userContent },
     ], { max_tokens: 200 })
+    const baseUrl = c.env.SUPABASE_URL
+    const serviceKey = c.env.SUPABASE_SERVICE_ROLE_KEY
+    if (baseUrl && serviceKey) {
+      logCost(baseUrl, serviceKey, { service: 'azure_openai', model: 'gpt-4o-mini', input_tokens: estimateTokens(systemPrompt) + estimateTokens(userContent), output_tokens: estimateTokens(raw) }).catch(() => {})
+    }
     const jsonMatch = raw.match(/\{[\s\S]*\}/)
     const parsed = jsonMatch ? (JSON.parse(jsonMatch) as { score?: number; feedback?: string }) : {}
     const score = Math.min(100, Math.max(0, Number(parsed.score) ?? 0))

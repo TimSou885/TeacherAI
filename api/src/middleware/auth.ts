@@ -10,6 +10,10 @@ export type AuthVariables = {
   classId?: string
   studentName?: string
   studentGradeLevel?: number
+  /** 管理員中介軟體設定 */
+  adminUserId?: string
+  adminRole?: string
+  adminDisplayName?: string
 }
 
 const getJwks = (supabaseUrl: string) =>

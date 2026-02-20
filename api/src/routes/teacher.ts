@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import * as supabase from '../services/supabase'
 import { chatComplete } from '../services/azure-openai'
+import { logCost, estimateTokens } from '../services/cost-tracker'
 import { authMiddleware } from '../middleware/auth'
 import type { Env } from '../index'
 import type { AuthVariables } from '../middleware/auth'
@@ -172,18 +173,16 @@ app.get('/class-weakness', async (c) => {
     const apiKey = (c.env.AZURE_OPENAI_API_KEY ?? '').trim()
     if (endpoint && apiKey && summaryForAi) {
       try {
+        const sysContent = '你是小學中文科教學顧問。根據班級錯題數據，用 1～2 句話給出具體教學建議（例如加強哪個範疇、哪些題型）。只輸出建議內容，不要標題或前言。'
+        const userContent = `本班待複習錯題摘要：\n${summaryForAi}\n\n請給出簡短教學建議（1～2 句）：`
         aiSuggestion = await chatComplete(endpoint, apiKey, [
-          {
-            role: 'system',
-            content:
-              '你是小學中文科教學顧問。根據班級錯題數據，用 1～2 句話給出具體教學建議（例如加強哪個範疇、哪些題型）。只輸出建議內容，不要標題或前言。',
-          },
-          {
-            role: 'user',
-            content: `本班待複習錯題摘要：\n${summaryForAi}\n\n請給出簡短教學建議（1～2 句）：`,
-          },
+          { role: 'system', content: sysContent },
+          { role: 'user', content: userContent },
         ], { max_tokens: 150 })
         aiSuggestion = aiSuggestion.trim() || null
+        if (baseUrl && serviceKey) {
+          logCost(baseUrl, serviceKey, { service: 'azure_openai', model: 'gpt-4o-mini', input_tokens: estimateTokens(sysContent) + estimateTokens(userContent), output_tokens: estimateTokens(aiSuggestion || '') }).catch(() => {})
+        }
       } catch {
         // 忽略 AI 失敗，照常回傳數據
       }

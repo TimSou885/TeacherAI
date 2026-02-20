@@ -47,9 +47,15 @@ export default function Home() {
             </Link>
             <Link
               to="/teacher/generate"
-              className="inline-block w-full py-3 px-4 rounded-xl border-2 border-amber-400 text-amber-800 font-medium hover:bg-amber-50 transition"
+              className="inline-block w-full py-3 px-4 rounded-xl border-2 border-amber-400 text-amber-800 font-medium hover:bg-amber-50 transition mb-3"
             >
               AI 出題
+            </Link>
+            <Link
+              to="/admin"
+              className="inline-block w-full py-3 px-4 rounded-xl border-2 border-slate-300 text-slate-700 font-medium hover:bg-slate-50 transition"
+            >
+              管理員後台
             </Link>
           </>
         ) : (

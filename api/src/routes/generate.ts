@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { chatComplete } from '../services/azure-openai'
 import * as supabase from '../services/supabase'
+import { logCost, estimateTokens } from '../services/cost-tracker'
 import {
   generateExercisePrompt,
   generateFromErrorsPrompt,
@@ -89,6 +90,9 @@ app.post('/generate', async (c) => {
         { role: 'system', content: '你只輸出 JSON，不要 markdown 或額外說明。' },
         { role: 'user', content: prompt },
       ], { max_tokens: 2000 })
+      if (baseUrl && serviceKey) {
+        logCost(baseUrl, serviceKey, { service: 'azure_openai', model: 'gpt-4o-mini', input_tokens: estimateTokens(prompt), output_tokens: estimateTokens(raw) }).catch(() => {})
+      }
       let content = parseGeneratedJson(raw)
       if (Array.isArray(content)) {
         content = { type: 'quiz', questions: content }
@@ -127,6 +131,9 @@ app.post('/generate', async (c) => {
           { role: 'system', content: '你只輸出 JSON，不要 markdown 或額外說明。' },
           { role: 'user', content: prompt },
         ], { max_tokens: 1500 })
+        if (baseUrl && serviceKey) {
+          logCost(baseUrl, serviceKey, { service: 'azure_openai', model: 'gpt-4o-mini', input_tokens: estimateTokens(prompt), output_tokens: estimateTokens(raw) }).catch(() => {})
+        }
         let content = parseGeneratedJson(raw)
         if (cat === 'dictation' && typeof content === 'object' && content !== null && 'words' in (content as object)) {
           content = { type: 'dictation', words: (content as { words: unknown }).words }
@@ -171,6 +178,9 @@ app.post('/generate', async (c) => {
       { role: 'system', content: '你只輸出 JSON，不要 markdown 或額外說明。' },
       { role: 'user', content: prompt },
     ], { max_tokens: 1500 })
+    if (baseUrl && serviceKey) {
+      logCost(baseUrl, serviceKey, { service: 'azure_openai', model: 'gpt-4o-mini', input_tokens: estimateTokens(prompt), output_tokens: estimateTokens(raw) }).catch(() => {})
+    }
     let content = parseGeneratedJson(raw)
     if (cat === 'dictation' && typeof content === 'object' && content !== null && 'words' in (content as object)) {
       content = content

@@ -959,3 +959,159 @@ export async function updateLiveSessionStatus(
   })
   return patchRes.ok
 }
+
+/** 管理員：系統總覽統計（今日活躍、學生數、對話數、待審標記數） */
+export async function getAdminStats(
+  baseUrl: string,
+  serviceKey: string
+): Promise<{
+  todayActiveCount: number
+  studentCount: number
+  conversationCount: number
+  pendingFlagsCount: number
+}> {
+  const base = baseUrl.replace(/\/$/, '')
+  const todayStart = new Date()
+  todayStart.setUTCHours(0, 0, 0, 0)
+  const todayIso = todayStart.toISOString()
+
+  const [studentsRes, conversationsRes, attemptsRes, flagsRes] = await Promise.all([
+    supabaseFetch(`${base}/rest/v1/students?select=id`, serviceKey),
+    supabaseFetch(`${base}/rest/v1/conversations?select=id`, serviceKey),
+    supabaseFetch(
+      `${base}/rest/v1/exercise_attempts?completed_at=gte.${todayIso}&select=student_id`,
+      serviceKey
+    ),
+    supabaseFetch(
+      `${base}/rest/v1/conversation_flags?status=eq.pending&select=id`,
+      serviceKey
+    ),
+  ])
+
+  let todayActiveCount = 0
+  if (attemptsRes.ok) {
+    const attempts = (await attemptsRes.json()) as Array<{ student_id: string }>
+    todayActiveCount = new Set(attempts.map((a) => a.student_id)).size
+  }
+  const studentCount = studentsRes.ok ? ((await studentsRes.json()) as unknown[]).length : 0
+  const conversationCount = conversationsRes.ok ? ((await conversationsRes.json()) as unknown[]).length : 0
+  const pendingFlagsCount = flagsRes.ok ? ((await flagsRes.json()) as unknown[]).length : 0
+
+  return {
+    todayActiveCount,
+    studentCount,
+    conversationCount,
+    pendingFlagsCount,
+  }
+}
+
+/** 管理員：成本彙總（可選依月份、服務） */
+export async function getCostSummary(
+  baseUrl: string,
+  serviceKey: string,
+  options?: { month?: string }
+): Promise<{ totalUsd: number; byService: Record<string, number>; rows: Array<{ service: string; estimated_cost_usd: number; created_at: string }> }> {
+  const base = baseUrl.replace(/\/$/, '')
+  let url = `${base}/rest/v1/api_cost_log?select=service,estimated_cost_usd,created_at&order=created_at.desc`
+  if (options?.month) {
+    const [y, m] = options.month.split('-')
+    const start = `${y}-${m}-01T00:00:00.000Z`
+    const endDate = new Date(parseInt(y, 10), parseInt(m, 10), 0)
+    const end = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 23, 59, 59, 999).toISOString()
+    url += `&created_at=gte.${start}&created_at=lte.${end}`
+  }
+  const res = await supabaseFetch(url, serviceKey)
+  if (!res.ok) {
+    return { totalUsd: 0, byService: {}, rows: [] }
+  }
+  const rows = (await res.json()) as Array<{ service: string; estimated_cost_usd: number; created_at: string }>
+  let totalUsd = 0
+  const byService: Record<string, number> = {}
+  for (const r of rows) {
+    totalUsd += Number(r.estimated_cost_usd)
+    byService[r.service] = (byService[r.service] ?? 0) + Number(r.estimated_cost_usd)
+  }
+  return { totalUsd, byService, rows }
+}
+
+/** 取得最近更新的對話 ID 列表（供 Cron 掃描，since 為 ISO 字串） */
+export async function getConversationIdsUpdatedSince(
+  baseUrl: string,
+  serviceKey: string,
+  sinceIso: string
+): Promise<Array<{ id: string }>> {
+  const url = `${baseUrl.replace(/\/$/, '')}/rest/v1/conversations?updated_at=gte.${sinceIso}&select=id&order=updated_at.desc&limit=200`
+  const res = await supabaseFetch(url, serviceKey)
+  if (!res.ok) return []
+  return (await res.json()) as Array<{ id: string }>
+}
+
+/** 取得已有標記的 conversation_id 列表（避免重複掃描） */
+export async function getFlaggedConversationIds(
+  baseUrl: string,
+  serviceKey: string
+): Promise<Set<string>> {
+  const url = `${baseUrl.replace(/\/$/, '')}/rest/v1/conversation_flags?select=conversation_id`
+  const res = await supabaseFetch(url, serviceKey)
+  if (!res.ok) return new Set()
+  const rows = (await res.json()) as Array<{ conversation_id: string }>
+  return new Set(rows.map((r) => r.conversation_id))
+}
+
+/** 新增一筆對話標記 */
+export async function insertConversationFlag(
+  baseUrl: string,
+  serviceKey: string,
+  payload: {
+    conversation_id: string
+    flag_type: string
+    risk_score?: number | null
+    ai_summary?: string | null
+    status?: string
+  }
+): Promise<void> {
+  const url = `${baseUrl.replace(/\/$/, '')}/rest/v1/conversation_flags`
+  const res = await supabaseFetch(url, serviceKey, {
+    method: 'POST',
+    body: JSON.stringify({
+      conversation_id: payload.conversation_id,
+      flag_type: payload.flag_type,
+      risk_score: payload.risk_score ?? null,
+      ai_summary: payload.ai_summary ?? null,
+      status: payload.status ?? 'pending',
+    }),
+    headers: { Prefer: 'return=minimal' },
+  })
+  if (!res.ok) throw new Error(`Supabase conversation_flags: ${await res.text()}`)
+}
+
+/** 管理員：對話標記列表（待審或全部） */
+export async function listConversationFlags(
+  baseUrl: string,
+  serviceKey: string,
+  options?: { status?: string; limit?: number }
+): Promise<Array<{
+  id: string
+  conversation_id: string
+  flag_type: string
+  risk_score: number | null
+  ai_summary: string | null
+  status: string
+  created_at: string
+}>> {
+  const base = baseUrl.replace(/\/$/, '')
+  let url = `${base}/rest/v1/conversation_flags?select=id,conversation_id,flag_type,risk_score,ai_summary,status,created_at&order=created_at.desc`
+  if (options?.status) url += `&status=eq.${encodeURIComponent(options.status)}`
+  if (options?.limit) url += `&limit=${options.limit}`
+  const res = await supabaseFetch(url, serviceKey)
+  if (!res.ok) return []
+  return (await res.json()) as Array<{
+    id: string
+    conversation_id: string
+    flag_type: string
+    risk_score: number | null
+    ai_summary: string | null
+    status: string
+    created_at: string
+  }>
+}

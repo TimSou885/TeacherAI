@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { synthesizeWithPolly } from '../services/polly'
+import { logCost } from '../services/cost-tracker'
 import type { Env } from '../index'
 
 const app = new Hono<{ Bindings: Env }>()
@@ -46,6 +47,11 @@ app.post('/tts', async (c) => {
         AWS_REGION: c.env.AWS_REGION,
       }
     )
+    const baseUrl = c.env.SUPABASE_URL
+    const serviceKey = c.env.SUPABASE_SERVICE_ROLE_KEY
+    if (baseUrl && serviceKey) {
+      logCost(baseUrl, serviceKey, { service: 'polly', polly_chars: text.length }).catch(() => {})
+    }
     if (r2) {
       await r2.put(cacheKey, audioBuffer, {
         httpMetadata: { contentType: 'audio/mpeg' },

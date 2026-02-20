@@ -2,9 +2,13 @@ import { Hono } from 'hono'
 import { getEmbedding } from '../services/azure-openai'
 import * as supabase from '../services/supabase'
 import { insertVectors } from '../services/vectorize'
+import { logCost, estimateTokens } from '../services/cost-tracker'
+import { authMiddleware } from '../middleware/auth'
+import { adminMiddleware } from '../middleware/admin'
 import type { Env } from '../index'
+import type { AuthVariables } from '../middleware/auth'
 
-const app = new Hono<{ Bindings: Env }>()
+const app = new Hono<{ Bindings: Env; Variables: AuthVariables }>()
 
 /** POST /admin/embed：上傳課文段落並嵌入 Vectorize + 寫入 embeddings_log（需帶 X-Admin-Embed-Secret） */
 app.post('/embed', async (c) => {
@@ -44,6 +48,7 @@ app.post('/embed', async (c) => {
     try {
       const values = await getEmbedding(endpoint, apiKey, text)
       vectors.push({ id, values, text })
+      logCost(baseUrl, serviceKey, { service: 'azure_openai', model: 'text-embedding-3-small', input_tokens: estimateTokens(text) }).catch(() => {})
     } catch (e) {
       return c.json({ message: `Embedding failed for id ${id}: ${(e as Error).message}` }, 500)
     }
@@ -62,6 +67,48 @@ app.post('/embed', async (c) => {
   }
 
   return c.json({ ok: true, inserted: vectors.length })
+})
+
+/** GET /admin/stats — 系統總覽（管理員） */
+app.get('/stats', authMiddleware, adminMiddleware, async (c) => {
+  const baseUrl = c.env.SUPABASE_URL
+  const serviceKey = c.env.SUPABASE_SERVICE_ROLE_KEY
+  try {
+    const stats = await supabase.getAdminStats(baseUrl, serviceKey)
+    return c.json(stats)
+  } catch (e) {
+    return c.json({ message: (e as Error).message }, 500)
+  }
+})
+
+/** GET /admin/cost — 成本彙總（管理員，可選 ?month=YYYY-MM） */
+app.get('/cost', authMiddleware, adminMiddleware, async (c) => {
+  const baseUrl = c.env.SUPABASE_URL
+  const serviceKey = c.env.SUPABASE_SERVICE_ROLE_KEY
+  const month = c.req.query('month') ?? undefined
+  try {
+    const summary = await supabase.getCostSummary(baseUrl, serviceKey, month ? { month } : undefined)
+    return c.json(summary)
+  } catch (e) {
+    return c.json({ message: (e as Error).message }, 500)
+  }
+})
+
+/** GET /admin/conversation-flags — 對話標記列表（管理員，可選 ?status=pending） */
+app.get('/conversation-flags', authMiddleware, adminMiddleware, async (c) => {
+  const baseUrl = c.env.SUPABASE_URL
+  const serviceKey = c.env.SUPABASE_SERVICE_ROLE_KEY
+  const status = c.req.query('status') ?? undefined
+  const limit = c.req.query('limit') ? parseInt(c.req.query('limit'), 10) : 50
+  try {
+    const list = await supabase.listConversationFlags(baseUrl, serviceKey, {
+      status: status || undefined,
+      limit: Number.isFinite(limit) ? limit : 50,
+    })
+    return c.json({ flags: list })
+  } catch (e) {
+    return c.json({ message: (e as Error).message }, 500)
+  }
 })
 
 export const adminEmbedRoutes = app

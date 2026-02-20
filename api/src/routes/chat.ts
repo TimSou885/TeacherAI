@@ -3,6 +3,7 @@ import { getChatSystemPrompt } from '../subjects/chinese/prompts/chat-system'
 import { chatStream, parseAzureStream, generateConversationTitle, getEmbedding } from '../services/azure-openai'
 import * as supabase from '../services/supabase'
 import { queryRag } from '../services/vectorize'
+import { logCost, estimateTokens } from '../services/cost-tracker'
 import type { Env } from '../index'
 import type { AuthVariables } from '../middleware/auth'
 
@@ -64,6 +65,12 @@ app.post('/chat', async (c) => {
   if (c.env.VECTORIZE && endpoint && apiKey) {
     try {
       const embedding = await getEmbedding(endpoint, apiKey, message)
+      const baseUrl = c.env.SUPABASE_URL
+      const serviceKey = c.env.SUPABASE_SERVICE_ROLE_KEY
+      if (baseUrl && serviceKey) {
+        const embTokens = estimateTokens(message)
+        logCost(baseUrl, serviceKey, { service: 'azure_openai', model: 'text-embedding-3-small', input_tokens: embTokens }).catch(() => {})
+      }
       const matches = await queryRag(c.env.VECTORIZE, embedding, 5)
       ragContext = matches.map((m) => m.metadata?.text).filter(Boolean).join('\n\n')
     } catch {
@@ -137,10 +144,15 @@ app.post('/chat', async (c) => {
           content: fullContent,
         })
         await supabase.updateConversationUpdatedAt(baseUrl, serviceKey, conversationId)
+        const inputTokens = openAiMessages.reduce((sum, m) => sum + estimateTokens(m.content), 0)
+        const outputTokens = estimateTokens(fullContent)
+        logCost(baseUrl, serviceKey, { service: 'azure_openai', model: 'gpt-4o-mini', input_tokens: inputTokens, output_tokens: outputTokens }).catch(() => {})
         if (isNewConversation && fullContent) {
           try {
             const title = await generateConversationTitle(endpoint, apiKey, message, fullContent)
             await supabase.updateConversationTitle(baseUrl, serviceKey, conversationId, title)
+            const titleInput = estimateTokens(message) + estimateTokens(fullContent)
+            logCost(baseUrl, serviceKey, { service: 'azure_openai', model: 'gpt-4o-mini', input_tokens: titleInput, output_tokens: 20 }).catch(() => {})
           } catch {
             // 標題生成失敗不影響對話，略過
           }

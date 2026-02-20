@@ -12,6 +12,7 @@ import { generateRoutes } from './routes/generate'
 import { teacherRoutes } from './routes/teacher'
 import { liveRoutes } from './routes/live'
 import { adminEmbedRoutes } from './routes/admin-embed'
+import { runConversationScan } from './scheduled/conversation-scan'
 
 export type Env = {
   SUPABASE_URL: string
@@ -90,4 +91,17 @@ app.route('/api', generateRoutes)
 app.route('/api/teacher', teacherRoutes)
 app.route('/api/admin', adminEmbedRoutes)
 
-export default app
+export default {
+  fetch: app.fetch,
+  async scheduled(
+    _event: ScheduledEvent,
+    env: Env,
+    ctx: ExecutionContext
+  ): Promise<void> {
+    ctx.waitUntil(
+      runConversationScan(env).then((r) => {
+        if (r.scanned > 0) console.log('conversation-scan:', r)
+      })
+    )
+  },
+}

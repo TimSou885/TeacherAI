@@ -22,6 +22,10 @@ import StudentHome, {
   StudentMeTab,
 } from './pages/student/StudentHome'
 import Join from './pages/student/Join'
+import AdminLayout from './pages/admin/AdminLayout'
+import AdminDashboard from './pages/admin/Dashboard'
+import AdminCostMonitor from './pages/admin/CostMonitor'
+import AdminConversations from './pages/admin/Conversations'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -80,6 +84,11 @@ export default function App() {
           <Route path="stroke-teach" element={<StrokeTeach />} />
           <Route path="error-review" element={<ErrorReview />} />
           <Route path="live" element={<Live />} />
+        </Route>
+        <Route path="/admin" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
+          <Route index element={<AdminDashboard />} />
+          <Route path="cost" element={<AdminCostMonitor />} />
+          <Route path="conversations" element={<AdminConversations />} />
         </Route>
         <Route path="/student" element={<StudentLogin />} />
         <Route path="/student/join" element={<StudentProtectedRoute><Join /></StudentProtectedRoute>} />
