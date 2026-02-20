@@ -85,8 +85,16 @@ export async function getTeacherToken(): Promise<string | null> {
     // #endregion
     return cachedTeacherToken
   }
-  const { data: { session } } = await import('../lib/supabase').then(m => m.supabase.auth.getSession())
-  const token = session?.access_token ?? null
+  const supabase = (await import('../lib/supabase')).supabase
+  const { data: { session } } = await supabase.auth.getSession()
+  let token = session?.access_token ?? null
+  if (!token) {
+    const { data: { session: sessionAfterRefresh } } = await supabase.auth.refreshSession().then(() => supabase.auth.getSession())
+    token = sessionAfterRefresh?.access_token ?? null
+    if (token) {
+      cachedTeacherToken = token
+    }
+  }
   // #region agent log
   fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5fd7ac'},body:JSON.stringify({sessionId:'5fd7ac',location:'api.ts:getTeacherToken',message:'getTeacherToken result',data:{fromCache:false,hasToken:!!token,tokenLen:token?token.length:0},hypothesisId:'H1',timestamp:Date.now()})}).catch(()=>{});
   // #endregion
