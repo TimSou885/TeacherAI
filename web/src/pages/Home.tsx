@@ -54,7 +54,7 @@ export default function Home() {
           </>
         ) : (
           <Link
-            to="/login"
+            to="/teacher/login"
             className="inline-block w-full py-3 px-4 rounded-xl border-2 border-amber-400 text-amber-800 font-medium hover:bg-amber-50 transition"
           >
             老師登入

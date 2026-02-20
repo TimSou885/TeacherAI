@@ -65,7 +65,7 @@ export default function StudentLogin() {
     return (
       <div className="min-h-screen bg-amber-50 flex flex-col items-center p-6 pt-12 relative">
         <Link to="/" className="absolute top-4 left-4 text-amber-700 text-sm underline hover:text-amber-900">
-          返回首頁 · 老師登入
+          返回首頁 · 老師入口
         </Link>
         <h1 className="text-xl font-bold text-amber-900 mb-1">{className}</h1>
         <p className="text-amber-800/80 text-sm mb-6">點你的名字進入</p>
@@ -101,7 +101,7 @@ export default function StudentLogin() {
   return (
     <div className="min-h-screen bg-amber-50 flex flex-col items-center justify-center p-6 relative">
       <Link to="/" className="absolute top-4 left-4 text-amber-700 text-sm underline hover:text-amber-900">
-        返回首頁 · 老師登入
+        返回首頁 · 老師入口
       </Link>
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-lg p-8">
         <h1 className="text-2xl font-bold text-amber-900 mb-2">學生登入</h1>

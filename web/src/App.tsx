@@ -21,7 +21,7 @@ import StudentHome, {
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
   if (loading) return <div className="p-8 text-center">載入中…</div>
-  if (!user) return <Navigate to="/login" replace />
+  if (!user) return <Navigate to="/teacher/login" replace />
   return <>{children}</>
 }
 
@@ -48,7 +48,8 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path="/login" element={<Login />} />
+        <Route path="/login" element={<Navigate to="/teacher/login" replace />} />
+        <Route path="/teacher/login" element={<Login />} />
         <Route
           path="/chat"
           element={

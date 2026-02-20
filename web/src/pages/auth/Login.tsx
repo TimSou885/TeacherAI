@@ -21,7 +21,7 @@ export default function Login() {
       setError(err.message === 'Invalid login credentials' ? 'Email 或密碼錯誤' : err.message)
       return
     }
-    navigate('/chat', { replace: true })
+    navigate('/teacher', { replace: true })
   }
 
   return (
