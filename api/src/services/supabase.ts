@@ -690,6 +690,98 @@ export async function getClassErrorBookSummary(
   return lines.join('\n') || '班上目前無待複習錯題。'
 }
 
+/** 班級弱項分析：依範疇統計待複習錯題數、高頻錯題 TOP5、供 AI 的摘要 */
+export async function getClassWeaknessStats(
+  baseUrl: string,
+  serviceKey: string,
+  classId: string
+): Promise<{
+  categoryStats: Array<{ category: string; unresolvedCount: number }>
+  topErrors: Array<{ text: string; count: number; category: string }>
+  summaryForAi: string
+}> {
+  const exUrl = `${baseUrl.replace(/\/$/, '')}/rest/v1/exercises?class_id=eq.${classId}&select=id`
+  const exRes = await supabaseFetch(exUrl, serviceKey)
+  if (!exRes.ok) {
+    return { categoryStats: [], topErrors: [], summaryForAi: '' }
+  }
+  const exercises = (await exRes.json()) as Array<{ id: string }>
+  const exerciseIds = exercises.map((e) => e.id)
+  const allCategories = ['reading', 'grammar', 'vocabulary', 'dictation', 'reorder']
+  const categoryCounts = new Map<string, number>(allCategories.map((c) => [c, 0]))
+  const errorKeyToMeta = new Map<string, { count: number; category: string }>()
+  const lines: string[] = []
+
+  if (exerciseIds.length === 0) {
+    return {
+      categoryStats: allCategories.map((category) => ({ category, unresolvedCount: 0 })),
+      topErrors: [],
+      summaryForAi: '班上目前無練習，也無錯題。',
+    }
+  }
+
+  const url = `${baseUrl.replace(/\/$/, '')}/rest/v1/error_book?is_resolved=eq.false&exercise_id=in.(${exerciseIds.join(',')})&select=exercise_id,category,error_content`
+  const res = await supabaseFetch(url, serviceKey)
+  if (!res.ok) {
+    return {
+      categoryStats: allCategories.map((category) => ({ category, unresolvedCount: 0 })),
+      topErrors: [],
+      summaryForAi: '',
+    }
+  }
+  const rows = (await res.json()) as Array<{
+    exercise_id: string
+    category: string
+    error_content: Record<string, unknown>
+  }>
+
+  for (const row of rows) {
+    const cat = row.category || 'quiz'
+    if (categoryCounts.has(cat)) {
+      categoryCounts.set(cat, categoryCounts.get(cat)! + 1)
+    }
+    const q = row.error_content?.question ?? row.error_content?.word ?? JSON.stringify(row.error_content)
+    const key = String(q).slice(0, 80)
+    const prev = errorKeyToMeta.get(key)
+    if (prev) {
+      prev.count += 1
+    } else {
+      errorKeyToMeta.set(key, { count: 1, category: cat })
+    }
+  }
+
+  const categoryStats = allCategories.map((category) => ({
+    category,
+    unresolvedCount: categoryCounts.get(category) ?? 0,
+  }))
+  // 其他範疇（如 quiz、error_review）也列入，合併到 categoryStats 時只取 allCategories，但 topErrors 可含任何 category
+  const sortedErrors = [...errorKeyToMeta.entries()]
+    .sort((a, b) => b[1].count - a[1].count)
+    .slice(0, 5)
+  const topErrors = sortedErrors.map(([text, meta]) => ({
+    text,
+    count: meta.count,
+    category: meta.category,
+  }))
+
+  for (const cat of categoryCounts.keys()) {
+    const m = new Map<string, number>()
+    for (const row of rows) {
+      if (row.category !== cat) continue
+      const q = row.error_content?.question ?? row.error_content?.word ?? JSON.stringify(row.error_content)
+      const key = String(q).slice(0, 60)
+      m.set(key, (m.get(key) ?? 0) + 1)
+    }
+    const top = [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5)
+    if (top.length > 0) {
+      lines.push(`【${cat}】${top.map(([k, n]) => `「${k}」錯了 ${n} 次`).join('；')}`)
+    }
+  }
+  const summaryForAi = lines.length > 0 ? lines.join('\n') : '班上目前無待複習錯題。'
+
+  return { categoryStats, topErrors, summaryForAi }
+}
+
 /** 寫入 embeddings_log（RAG 嵌入追蹤） */
 export async function createEmbeddingLog(
   baseUrl: string,
@@ -717,4 +809,150 @@ export async function createEmbeddingLog(
     headers: { Prefer: 'return=minimal' },
   })
   if (!res.ok) throw new Error(`Supabase: ${await res.text()}`)
+}
+
+/** 即時課堂測驗：產生 6 碼代碼（大寫英數） */
+function generateLiveCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  let code = ''
+  for (let i = 0; i < 6; i++) {
+    code += chars[Math.floor(Math.random() * chars.length)]
+  }
+  return code
+}
+
+/** 建立即時測驗場次（教師） */
+export async function createLiveSession(
+  baseUrl: string,
+  serviceKey: string,
+  payload: { class_id: string; teacher_id: string; exercise_id: string }
+): Promise<{ id: string; code: string }> {
+  const base = baseUrl.replace(/\/$/, '')
+  let code = generateLiveCode()
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const checkUrl = `${base}/rest/v1/live_sessions?code=eq.${code}&select=id`
+    const checkRes = await supabaseFetch(checkUrl, serviceKey)
+    if (checkRes.ok) {
+      const existing = (await checkRes.json()) as Array<{ id: string }>
+      if (existing.length === 0) break
+    }
+    code = generateLiveCode()
+  }
+  const url = `${base}/rest/v1/live_sessions`
+  const res = await supabaseFetch(url, serviceKey, {
+    method: 'POST',
+    body: JSON.stringify({
+      class_id: payload.class_id,
+      teacher_id: payload.teacher_id,
+      exercise_id: payload.exercise_id,
+      code,
+      status: 'waiting',
+    }),
+    headers: { Prefer: 'return=representation' },
+  })
+  if (!res.ok) throw new Error(`Supabase live_sessions: ${await res.text()}`)
+  const rows = (await res.json()) as Array<{ id: string; code: string }>
+  return { id: rows[0].id, code: rows[0].code }
+}
+
+/** 依 code 取得場次（含 exercise_id, class_id, status） */
+export async function getLiveSessionByCode(
+  baseUrl: string,
+  serviceKey: string,
+  code: string
+): Promise<{
+  id: string
+  class_id: string
+  exercise_id: string
+  status: string
+} | null> {
+  const url = `${baseUrl.replace(/\/$/, '')}/rest/v1/live_sessions?code=eq.${encodeURIComponent(code.trim().toUpperCase())}&select=id,class_id,exercise_id,status`
+  const res = await supabaseFetch(url, serviceKey)
+  if (!res.ok) return null
+  const rows = (await res.json()) as Array<{ id: string; class_id: string; exercise_id: string; status: string }>
+  return rows[0] ?? null
+}
+
+/** 學生加入即時場次（須為該班學生） */
+export async function joinLiveSession(
+  baseUrl: string,
+  serviceKey: string,
+  sessionId: string,
+  studentId: string
+): Promise<'ok' | 'already_joined' | 'wrong_class'> {
+  const base = baseUrl.replace(/\/$/, '')
+  const sessionUrl = `${base}/rest/v1/live_sessions?id=eq.${sessionId}&select=class_id,status`
+  const sessionRes = await supabaseFetch(sessionUrl, serviceKey)
+  if (!sessionRes.ok) return 'wrong_class'
+  const sessions = (await sessionRes.json()) as Array<{ class_id: string; status: string }>
+  const session = sessions[0]
+  if (!session || session.status !== 'waiting') return 'wrong_class'
+  const studentUrl = `${base}/rest/v1/students?id=eq.${studentId}&class_id=eq.${session.class_id}&select=id`
+  const studentRes = await supabaseFetch(studentUrl, serviceKey)
+  if (!studentRes.ok) return 'wrong_class'
+  const students = (await studentRes.json()) as Array<{ id: string }>
+  if (students.length === 0) return 'wrong_class'
+  const insertUrl = `${base}/rest/v1/live_participants`
+  const insertRes = await supabaseFetch(insertUrl, serviceKey, {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId, student_id: studentId }),
+    headers: { Prefer: 'return=minimal' },
+  })
+  if (insertRes.status === 409) return 'already_joined'
+  if (!insertRes.ok) return 'wrong_class'
+  return 'ok'
+}
+
+/** 取得場次詳情（含參與人數、teacher_id） */
+export async function getLiveSessionById(
+  baseUrl: string,
+  serviceKey: string,
+  sessionId: string
+): Promise<{
+  id: string
+  class_id: string
+  exercise_id: string
+  code: string
+  status: string
+  teacher_id: string
+  participant_count: number
+} | null> {
+  const base = baseUrl.replace(/\/$/, '')
+  const sessionUrl = `${base}/rest/v1/live_sessions?id=eq.${sessionId}&select=id,class_id,exercise_id,code,status,teacher_id`
+  const sessionRes = await supabaseFetch(sessionUrl, serviceKey)
+  if (!sessionRes.ok) return null
+  const sessions = (await sessionRes.json()) as Array<{ id: string; class_id: string; exercise_id: string; code: string; status: string; teacher_id: string }>
+  const session = sessions[0]
+  if (!session) return null
+  const countUrl = `${base}/rest/v1/live_participants?session_id=eq.${sessionId}&select=id`
+  const countRes = await supabaseFetch(countUrl, serviceKey)
+  let participant_count = 0
+  if (countRes.ok) {
+    const rows = (await countRes.json()) as Array<{ id: string }>
+    participant_count = rows.length
+  }
+  return { ...session, participant_count }
+}
+
+/** 更新場次狀態（教師） */
+export async function updateLiveSessionStatus(
+  baseUrl: string,
+  serviceKey: string,
+  sessionId: string,
+  teacherId: string,
+  status: 'started' | 'ended'
+): Promise<boolean> {
+  const base = baseUrl.replace(/\/$/, '')
+  const checkUrl = `${base}/rest/v1/live_sessions?id=eq.${sessionId}&teacher_id=eq.${teacherId}&select=id`
+  const checkRes = await supabaseFetch(checkUrl, serviceKey)
+  if (!checkRes.ok) return false
+  const rows = (await checkRes.json()) as Array<{ id: string }>
+  if (rows.length === 0) return false
+  const patchUrl = `${base}/rest/v1/live_sessions?id=eq.${sessionId}`
+  const patchRes = await supabaseFetch(patchUrl, serviceKey, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+    headers: { Prefer: 'return=minimal' },
+  })
+  return patchRes.ok
 }

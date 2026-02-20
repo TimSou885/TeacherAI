@@ -10,6 +10,7 @@ import { scoreRoutes } from './routes/score'
 import { errorBookRoutes } from './routes/error-book'
 import { generateRoutes } from './routes/generate'
 import { teacherRoutes } from './routes/teacher'
+import { liveRoutes } from './routes/live'
 import { adminEmbedRoutes } from './routes/admin-embed'
 
 export type Env = {
@@ -79,6 +80,7 @@ app.use('/api/error-book', authMiddleware)
 app.use('/api/generate', authMiddleware)
 app.use('/api/classes', authMiddleware)
 app.use('/api/teacher', authMiddleware)
+app.route('/api/live', liveRoutes)
 app.route('/api', chatRoutes)
 app.route('/api', conversationRoutes)
 app.route('/api', exerciseRoutes)

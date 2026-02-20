@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import * as supabase from '../services/supabase'
+import { chatComplete } from '../services/azure-openai'
 import { authMiddleware } from '../middleware/auth'
 import type { Env } from '../index'
 import type { AuthVariables } from '../middleware/auth'
@@ -134,6 +135,65 @@ app.get('/students', async (c) => {
   try {
     const students = await supabase.listStudentsByClassId(baseUrl, serviceKey, classId)
     return c.json({ students })
+  } catch (e) {
+    return c.json({ message: (e as Error).message }, 500)
+  }
+})
+
+/** GET /api/teacher/class-weakness?class_id=xxx — 班級弱項分析（六大範疇健康度、高頻錯題 TOP5、AI 教學建議） */
+app.get('/class-weakness', async (c) => {
+  if (c.get('studentId')) {
+    return c.json({ message: 'Teachers only', code: 'student_forbidden' }, 403)
+  }
+  const userId = c.get('userId') ?? null
+  if (!userId) {
+    return c.json({ message: 'Unauthorized', code: 'missing_teacher_id', your_user_id: null }, 401)
+  }
+  const classId = c.req.query('class_id')
+  if (!classId) return c.json({ message: 'class_id required' }, 400)
+
+  const baseUrl = c.env.SUPABASE_URL
+  const serviceKey = c.env.SUPABASE_SERVICE_ROLE_KEY
+
+  const owns = await supabase.verifyTeacherOwnsClass(baseUrl, serviceKey, classId, userId)
+  if (!owns) {
+    return c.json({ message: '此班級不存在或您沒有權限查看。', code: 'class_not_owned' }, 404)
+  }
+
+  try {
+    const { categoryStats, topErrors, summaryForAi } = await supabase.getClassWeaknessStats(
+      baseUrl,
+      serviceKey,
+      classId
+    )
+
+    let aiSuggestion: string | null = null
+    const endpoint = (c.env.AZURE_OPENAI_ENDPOINT ?? '').trim()
+    const apiKey = (c.env.AZURE_OPENAI_API_KEY ?? '').trim()
+    if (endpoint && apiKey && summaryForAi) {
+      try {
+        aiSuggestion = await chatComplete(endpoint, apiKey, [
+          {
+            role: 'system',
+            content:
+              '你是小學中文科教學顧問。根據班級錯題數據，用 1～2 句話給出具體教學建議（例如加強哪個範疇、哪些題型）。只輸出建議內容，不要標題或前言。',
+          },
+          {
+            role: 'user',
+            content: `本班待複習錯題摘要：\n${summaryForAi}\n\n請給出簡短教學建議（1～2 句）：`,
+          },
+        ], { max_tokens: 150 })
+        aiSuggestion = aiSuggestion.trim() || null
+      } catch {
+        // 忽略 AI 失敗，照常回傳數據
+      }
+    }
+
+    return c.json({
+      categoryStats,
+      topErrors,
+      aiSuggestion,
+    })
   } catch (e) {
     return c.json({ message: (e as Error).message }, 500)
   }

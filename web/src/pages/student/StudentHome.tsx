@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { getStudentSession, clearStudentSession } from '../../lib/api'
 import Chat from './Chat'
@@ -76,9 +76,22 @@ const practiceCategories = [
 ]
 
 export function StudentPracticeTab() {
+  const location = useLocation()
+  const navigate = useNavigate()
   const [practiceCategory, setPracticeCategory] = useState<'dictation' | 'stroke' | 'quiz' | 'errorbook'>('dictation')
   const [quizExercise, setQuizExercise] = useState<{ id: string; title: string } | null>(null)
   const [errorReviewItems, setErrorReviewItems] = useState<Parameters<typeof ErrorReviewSession>[0]['items'] | null>(null)
+
+  const state = location.state as { liveExerciseId?: string; liveTitle?: string } | undefined
+  const appliedLive = useRef(false)
+  useEffect(() => {
+    if (state?.liveExerciseId && !appliedLive.current) {
+      appliedLive.current = true
+      setQuizExercise({ id: state.liveExerciseId, title: state.liveTitle ?? '即時測驗' })
+      setPracticeCategory('quiz')
+      navigate(location.pathname, { replace: true, state: {} })
+    }
+  }, [state?.liveExerciseId, state?.liveTitle, navigate, location.pathname])
 
   const content =
     practiceCategory === 'dictation' ? (
@@ -141,11 +154,19 @@ export function StudentWritingTab() {
 
 export function StudentMeTab() {
   const session = getStudentSession()
+  const navigate = useNavigate()
   return (
     <div className="flex-1 overflow-auto p-6">
       <div className="max-w-md mx-auto">
         <h2 className="text-lg font-semibold text-amber-900 mb-4">我的</h2>
         <p className="text-amber-800">你好，{session?.student.name}！</p>
+        <button
+          type="button"
+          onClick={() => navigate('/student/join')}
+          className="mt-4 w-full min-h-[44px] px-6 py-3 rounded-xl bg-amber-100 text-amber-900 font-medium hover:bg-amber-200 touch-manipulation"
+        >
+          加入即時測驗
+        </button>
         <button
           type="button"
           onClick={() => {

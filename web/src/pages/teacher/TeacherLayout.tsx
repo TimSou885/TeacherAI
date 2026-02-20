@@ -70,6 +70,38 @@ function TeacherNav() {
           >
             AI 出題
           </NavLink>
+          <NavLink
+            to="/teacher/quiz"
+            className={({ isActive }) =>
+              `min-h-[40px] px-4 py-2 rounded-lg text-sm font-medium transition ${isActive ? 'bg-amber-500 text-white' : 'text-amber-800 hover:bg-amber-100'}`
+            }
+          >
+            隨堂測驗
+          </NavLink>
+          <NavLink
+            to="/teacher/stroke-teach"
+            className={({ isActive }) =>
+              `min-h-[40px] px-4 py-2 rounded-lg text-sm font-medium transition ${isActive ? 'bg-amber-500 text-white' : 'text-amber-800 hover:bg-amber-100'}`
+            }
+          >
+            筆順教學
+          </NavLink>
+          <NavLink
+            to="/teacher/error-review"
+            className={({ isActive }) =>
+              `min-h-[40px] px-4 py-2 rounded-lg text-sm font-medium transition ${isActive ? 'bg-amber-500 text-white' : 'text-amber-800 hover:bg-amber-100'}`
+            }
+          >
+            錯題討論
+          </NavLink>
+          <NavLink
+            to="/teacher/live"
+            className={({ isActive }) =>
+              `min-h-[40px] px-4 py-2 rounded-lg text-sm font-medium transition ${isActive ? 'bg-amber-500 text-white' : 'text-amber-800 hover:bg-amber-100'}`
+            }
+          >
+            即時測驗
+          </NavLink>
         </nav>
       </header>
       <main className="flex-1 p-4 max-w-4xl mx-auto w-full">

@@ -9,6 +9,10 @@ import Dashboard from './pages/teacher/Dashboard'
 import Students from './pages/teacher/Students'
 import Content from './pages/teacher/Content'
 import Generate from './pages/teacher/Generate'
+import Quiz from './pages/teacher/Quiz'
+import StrokeTeach from './pages/teacher/StrokeTeach'
+import ErrorReview from './pages/teacher/ErrorReview'
+import Live from './pages/teacher/Live'
 import Chat from './pages/student/Chat'
 import StudentLogin from './pages/student/StudentLogin'
 import StudentHome, {
@@ -17,6 +21,7 @@ import StudentHome, {
   StudentWritingTab,
   StudentMeTab,
 } from './pages/student/StudentHome'
+import Join from './pages/student/Join'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -71,8 +76,13 @@ export default function App() {
           <Route path="students" element={<Students />} />
           <Route path="content" element={<Content />} />
           <Route path="generate" element={<Generate />} />
+          <Route path="quiz" element={<Quiz />} />
+          <Route path="stroke-teach" element={<StrokeTeach />} />
+          <Route path="error-review" element={<ErrorReview />} />
+          <Route path="live" element={<Live />} />
         </Route>
         <Route path="/student" element={<StudentLogin />} />
+        <Route path="/student/join" element={<StudentProtectedRoute><Join /></StudentProtectedRoute>} />
         <Route path="/student/home" element={<StudentProtectedRoute><StudentHome /></StudentProtectedRoute>}>
           <Route index element={<Navigate to="/student/home/chat" replace />} />
           <Route path="chat" element={<StudentChatTab />} />

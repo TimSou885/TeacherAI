@@ -1,0 +1,14 @@
+---
+description: Project context and conventions for EduSpark
+alwaysApply: true
+---
+
+# EduSpark 專案約定
+
+- **專案**：EduSpark 智能中文學伴（小學中文 AI 練習與教師儀表板）。一人開發、Cursor 輔助。
+- **技術棧**：React + Vite（前端）、Hono + Cloudflare Workers（API）、Supabase Auth/PostgreSQL、Azure OpenAI、Vectorize/R2/KV。
+- **設計與架構**：以根目錄 [architecture.md](architecture.md) 為準；階段與驗收見 phase-0.md ~ phase-3.md 與 [docs/](docs/)。
+- **主要程式碼**：`web/src`（前端）、`api/src`（後端）。新增或改動前先對照 architecture 與現有風格。
+- **語言**：介面與使用者可見文字使用繁體中文。
+
+入口與文件地圖見 [AGENTS.md](AGENTS.md)。

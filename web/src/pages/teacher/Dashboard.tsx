@@ -44,6 +44,14 @@ function UserIdFetcher({ onUserId }: { onUserId: (id: string) => void }) {
   )
 }
 
+const CATEGORY_LABELS: Record<string, string> = {
+  reading: '閱讀理解',
+  grammar: '語文基礎',
+  vocabulary: '詞語運用',
+  dictation: '默書',
+  reorder: '排句成段',
+}
+
 type DashboardStats = {
   studentCount: number
   exerciseCount: number
@@ -51,10 +59,20 @@ type DashboardStats = {
   errorBookUnresolvedCount: number
 }
 
+type CategoryStat = { category: string; unresolvedCount: number }
+type TopError = { text: string; count: number; category: string }
+type WeaknessData = {
+  categoryStats: CategoryStat[]
+  topErrors: TopError[]
+  aiSuggestion: string | null
+}
+
 export default function Dashboard() {
   const { classId, classes } = useTeacherClass()
   const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [weakness, setWeakness] = useState<WeaknessData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [weaknessLoading, setWeaknessLoading] = useState(false)
   const [error, setError] = useState('')
   const [errorUserId, setErrorUserId] = useState<string | null>(null)
   const [fetchedUserId, setFetchedUserId] = useState<string | null>(null)
@@ -131,6 +149,28 @@ export default function Dashboard() {
       })
     return () => { cancelled = true }
   }, [classId, classes.length])
+
+  // 班級弱項分析（選定班級後再載入）
+  useEffect(() => {
+    if (!classId) {
+      setWeakness(null)
+      return
+    }
+    let cancelled = false
+    setWeaknessLoading(true)
+    apiFetch(`/api/teacher/class-weakness?class_id=${encodeURIComponent(classId)}`, undefined, { preferTeacher: true })
+      .then((res) => res.json() as Promise<WeaknessData>)
+      .then((data) => {
+        if (!cancelled) setWeakness(data)
+      })
+      .catch(() => {
+        if (!cancelled) setWeakness(null)
+      })
+      .finally(() => {
+        if (!cancelled) setWeaknessLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [classId])
 
   if (classes.length === 0) {
     return (
@@ -255,6 +295,65 @@ export default function Dashboard() {
           <p className="text-xs text-amber-600 mt-0.5">筆</p>
         </div>
       </div>
+
+      {/* 班級弱項分析：六大範疇健康度、高頻錯題 TOP5、AI 教學建議 */}
+      <section className="bg-white rounded-xl border border-amber-100 p-6">
+        <h2 className="font-medium text-amber-900 mb-4">班級弱項分析</h2>
+        {weaknessLoading ? (
+          <p className="text-sm text-amber-700">載入中…</p>
+        ) : weakness ? (
+          <div className="space-y-5">
+            <div>
+              <h3 className="text-sm font-medium text-amber-800 mb-2">六大範疇待複習錯題數</h3>
+              <ul className="space-y-2">
+                {weakness.categoryStats.map(({ category, unresolvedCount }) => {
+                  const label = CATEGORY_LABELS[category] ?? category
+                  const max = Math.max(1, ...weakness.categoryStats.map((s) => s.unresolvedCount))
+                  const width = max ? Math.round((unresolvedCount / max) * 100) : 0
+                  return (
+                    <li key={category} className="flex items-center gap-3">
+                      <span className="w-24 text-sm text-amber-800 shrink-0">{label}</span>
+                      <div className="flex-1 h-5 bg-amber-100 rounded overflow-hidden">
+                        <div
+                          className="h-full bg-amber-500 rounded transition-all"
+                          style={{ width: `${width}%` }}
+                        />
+                      </div>
+                      <span className="text-sm font-medium text-amber-900 w-8">{unresolvedCount}</span>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+            {weakness.topErrors.length > 0 && (
+              <div>
+                <h3 className="text-sm font-medium text-amber-800 mb-2">高頻錯題 TOP 5</h3>
+                <ol className="list-decimal list-inside space-y-1 text-sm text-amber-800">
+                  {weakness.topErrors.map((e, i) => (
+                    <li key={i}>
+                      <span className="font-medium">{e.text.slice(0, 50)}{e.text.length > 50 ? '…' : ''}</span>
+                      <span className="text-amber-600 ml-1">
+                        （{CATEGORY_LABELS[e.category] ?? e.category}，{e.count} 次）
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
+            {weakness.aiSuggestion && (
+              <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+                <h3 className="text-sm font-medium text-amber-800 mb-1">AI 教學建議</h3>
+                <p className="text-sm text-amber-900">{weakness.aiSuggestion}</p>
+              </div>
+            )}
+            {!weakness.categoryStats.some((s) => s.unresolvedCount > 0) && !weakness.aiSuggestion && (
+              <p className="text-sm text-amber-700">目前無待複習錯題數據，或班級尚無練習記錄。</p>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm text-amber-700">無法載入弱項分析。</p>
+        )}
+      </section>
 
       <section className="bg-white rounded-xl border border-amber-100 p-6">
         <h2 className="font-medium text-amber-900 mb-2">AI 對話趨勢摘要</h2>
