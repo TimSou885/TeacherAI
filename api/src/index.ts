@@ -55,7 +55,7 @@ app.use(
       'https://eduspark.pages.dev',
       'https://teacherai.pages.dev',
     ],
-    allowMethods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+    allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization'],
   })
 )
