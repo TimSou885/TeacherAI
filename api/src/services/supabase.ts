@@ -886,7 +886,8 @@ export async function joinLiveSession(
   if (!sessionRes.ok) return 'session_not_waiting'
   const sessions = (await sessionRes.json()) as Array<{ class_id: string; status: string }>
   const session = sessions[0]
-  if (!session || session.status !== 'waiting') return 'session_not_waiting'
+  if (!session) return 'session_not_waiting'
+  if (session.status === 'ended') return 'session_not_waiting'
   const classId = (session.class_id ?? '').toLowerCase()
   const sid = (studentId ?? '').toLowerCase()
   const studentUrl = `${base}/rest/v1/students?id=eq.${sid}&class_id=eq.${classId}&select=id`
