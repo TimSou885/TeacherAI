@@ -71,14 +71,26 @@ async function getToken(preferStudent?: boolean): Promise<string | null> {
 /** 教師 Layout 掛載時寫入，供 getTeacherToken 優先使用（避免 getSession 時序問題） */
 let cachedTeacherToken: string | null = null
 export function setCachedTeacherToken(token: string | null): void {
+  // #region agent log
+  fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5fd7ac'},body:JSON.stringify({sessionId:'5fd7ac',location:'api.ts:setCachedTeacherToken',message:'cache set',data:{hasToken:!!token,tokenLen:token?token.length:0},hypothesisId:'H3',timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
   cachedTeacherToken = token
 }
 
 /** 僅回傳 Supabase 老師 session token（不 fallback 學生），供教師 API 使用 */
 export async function getTeacherToken(): Promise<string | null> {
-  if (cachedTeacherToken) return cachedTeacherToken
+  if (cachedTeacherToken) {
+    // #region agent log
+    fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5fd7ac'},body:JSON.stringify({sessionId:'5fd7ac',location:'api.ts:getTeacherToken',message:'getTeacherToken result',data:{fromCache:true,hasToken:true,tokenLen:cachedTeacherToken.length},hypothesisId:'H1',timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+    return cachedTeacherToken
+  }
   const { data: { session } } = await import('../lib/supabase').then(m => m.supabase.auth.getSession())
-  return session?.access_token ?? null
+  const token = session?.access_token ?? null
+  // #region agent log
+  fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5fd7ac'},body:JSON.stringify({sessionId:'5fd7ac',location:'api.ts:getTeacherToken',message:'getTeacherToken result',data:{fromCache:false,hasToken:!!token,tokenLen:token?token.length:0},hypothesisId:'H1',timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
+  return token
 }
 
 export async function apiFetch(

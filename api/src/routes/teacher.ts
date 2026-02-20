@@ -48,8 +48,11 @@ app.get('/dashboard', async (c) => {
   if (studentId) {
     return c.json({ message: 'Teachers only', code: 'student_forbidden' }, 403)
   }
-  const userId = c.get('userId')
+  const userId = c.get('userId') ?? null
   const classId = c.req.query('class_id')
+  if (!userId) {
+    return c.json({ message: 'Unauthorized', code: 'missing_teacher_id', your_user_id: null }, 401)
+  }
   if (!classId) {
     return c.json({ message: 'class_id required' }, 400)
   }
@@ -79,7 +82,10 @@ app.post('/claim-class', async (c) => {
   if (c.get('studentId')) {
     return c.json({ message: 'Teachers only', code: 'student_forbidden' }, 403)
   }
-  const userId = c.get('userId')
+  const userId = c.get('userId') ?? null
+  if (!userId) {
+    return c.json({ message: 'Unauthorized', code: 'missing_teacher_id', your_user_id: null }, 401)
+  }
   let body: { class_id?: string }
   try {
     body = (await c.req.json()) as { class_id?: string }
@@ -108,7 +114,10 @@ app.get('/students', async (c) => {
   if (c.get('studentId')) {
     return c.json({ message: 'Teachers only', code: 'student_forbidden' }, 403)
   }
-  const userId = c.get('userId')
+  const userId = c.get('userId') ?? null
+  if (!userId) {
+    return c.json({ message: 'Unauthorized', code: 'missing_teacher_id', your_user_id: null }, 401)
+  }
   const classId = c.req.query('class_id')
   if (!classId) return c.json({ message: 'class_id required' }, 400)
 

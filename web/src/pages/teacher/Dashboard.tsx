@@ -169,8 +169,14 @@ export default function Dashboard() {
               type="button"
               onClick={async () => {
                 setCheckClassDebug(null)
+                // #region agent log
+                fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5fd7ac'},body:JSON.stringify({sessionId:'5fd7ac',location:'Dashboard.tsx:debugClick',message:'debug button clicked',data:{classId},hypothesisId:'H1',timestamp:Date.now()})}).catch(()=>{});
+                // #endregion
                 const teacherToken = await getTeacherToken()
                 if (!teacherToken) {
+                  // #region agent log
+                  fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5fd7ac'},body:JSON.stringify({sessionId:'5fd7ac',location:'Dashboard.tsx:noToken',message:'no teacher token',data:{},hypothesisId:'H1',timestamp:Date.now()})}).catch(()=>{});
+                  // #endregion
                   setCheckClassDebug({
                     error: 'no_teacher_session',
                     message: '無法取得老師登入狀態，請重新整理頁面或重新登入老師帳號後再試。',
@@ -178,6 +184,9 @@ export default function Dashboard() {
                   })
                   return
                 }
+                // #region agent log
+                fetch('http://127.0.0.1:7246/ingest/ce4da3a2-50de-4590-a46a-3e3626a1067e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5fd7ac'},body:JSON.stringify({sessionId:'5fd7ac',location:'Dashboard.tsx:hasToken',message:'calling check-class with token',data:{tokenLen:teacherToken.length},hypothesisId:'H2',timestamp:Date.now()})}).catch(()=>{});
+                // #endregion
                 const res = await apiFetch(`/api/teacher/check-class?class_id=${encodeURIComponent(classId)}`, undefined, { token: teacherToken })
                 const data = await res.json().catch(() => ({})) as Record<string, unknown>
                 setCheckClassDebug(data)
