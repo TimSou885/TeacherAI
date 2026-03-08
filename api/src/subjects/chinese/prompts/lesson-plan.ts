@@ -107,12 +107,14 @@ ${blockList}
 用換行與縮排表示層級，適合小學黑板書寫。直接輸出板書內容，不要 JSON 或 markdown 標記。`
 }
 
-/** AI 解析文件：擷取教學目標、生字詞、核心價值 */
+/** AI 解析文件：擷取教學目標、生字詞、核心價值、核心概念、核心問題 */
 export function parseDocumentPrompt(text: string): string {
   return `以下是一份教案或課文文件的擷取文字。請從中擷取並輸出 JSON 物件，包含：
 - learning_objectives：教學目標（陣列，每項一字串）
 - key_vocabulary：重點生字詞（陣列）
 - core_values：核心價值觀或課文主旨（字串，簡短）
+- core_concept：核心概念（字串，本課要讓學生掌握的核心概念，約 20 字）
+- core_question：核心問題（字串，能引導學生思考的關鍵提問，約 30 字）
 
 若某項無法從文中辨識，可留空陣列或空字串。
 
@@ -142,6 +144,61 @@ ${extra}
 - 可直接作為教師口述的腳本
 
 直接輸出結語內容，不要 JSON 或標題。`
+}
+
+/** AI 生成關鍵提問（WHERETO 精神：引導思考的提問） */
+export function generateKeyQuestionsPrompt(params: {
+  sourceText: string
+  blocks: Array<{ type: string; activity: string }>
+  gradeLevel: number
+  coreQuestion?: string
+}): string {
+  const blockList = params.blocks.map((b) => `- ${b.type}：${b.activity}`).join('\n')
+  const extra = params.coreQuestion ? `\n可參考的核心問題：${params.coreQuestion}` : ''
+  return `你是一位澳門小學${params.gradeLevel}年級的中文老師。根據課文與教學流程，設計 3-5 個「關鍵提問」，用於引導學生深度思考。
+
+課文摘要：
+${params.sourceText.slice(0, 1000)}
+
+教學環節：
+${blockList}
+${extra}
+
+關鍵提問應：
+- 具核心價值，能引發思考
+- 符合小${params.gradeLevel}年級理解力
+- 涵蓋導入、新授、總結等不同階段
+- 可參考 WHERETO 精神（何處學、為何學、如何學等）
+
+請輸出 JSON 陣列，每項為一字串。例如：["如果松鼠沒有選擇綠葉，故事會怎麼發展？","你覺得什麼比外表更重要？"]
+只輸出 JSON 陣列。`
+}
+
+/** AI 生成評量設計 */
+export function generateAssessmentPrompt(params: {
+  sourceText: string
+  blocks: Array<{ type: string; activity: string }>
+  gradeLevel: number
+  learningObjectives?: string[]
+}): string {
+  const blockList = params.blocks.map((b) => `- ${b.type}：${b.activity}`).join('\n')
+  const objBlock = params.learningObjectives?.length
+    ? `\n教學目標：${params.learningObjectives.join('、')}`
+    : ''
+  return `你是一位澳門小學${params.gradeLevel}年級的中文老師。根據課文與教學流程，設計本課的評量方式。
+
+課文摘要：
+${params.sourceText.slice(0, 800)}
+
+教學環節：
+${blockList}
+${objBlock}
+
+請輸出評量設計的文字說明，包含：
+1. 形成性評量：課中如何觀察／檢核學生理解（如：口頭回答、觀察記錄）
+2. 總結性評量：課後如何評量學習成果（如：口頭複述、簡短寫作、選擇題）
+每項具體、可操作，約 80-150 字。
+直接輸出評量設計內容，不要 JSON 或標題。`
 }
 
 /** AI 生成作業與延伸活動 */

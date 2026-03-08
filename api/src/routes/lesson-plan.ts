@@ -9,6 +9,8 @@ import {
   parseDocumentPrompt,
   generateValueClimaxPrompt,
   generateHomeworkPrompt,
+  generateKeyQuestionsPrompt,
+  generateAssessmentPrompt,
 } from '../subjects/chinese/prompts/lesson-plan'
 import type { Env } from '../index'
 import type { AuthVariables } from '../middleware/auth'
@@ -68,6 +70,11 @@ app.post('/lesson-plans', async (c) => {
     blocks: unknown
     student_profile?: string
     textbook_ref?: string
+    core_concept?: string
+    core_question?: string
+    key_questions?: string[]
+    plan_mode?: 'detailed' | 'brief'
+    assessment_design?: string
   }
   try {
     body = (await c.req.json()) as typeof body
@@ -90,6 +97,11 @@ app.post('/lesson-plans', async (c) => {
       blocks: body.blocks,
       student_profile: body.student_profile?.trim() || null,
       textbook_ref: body.textbook_ref?.trim() || null,
+      core_concept: body.core_concept?.trim() || null,
+      core_question: body.core_question?.trim() || null,
+      key_questions: Array.isArray(body.key_questions) ? body.key_questions : null,
+      plan_mode: body.plan_mode === 'brief' ? 'brief' : 'detailed',
+      assessment_design: body.assessment_design?.trim() || null,
     })
     return c.json({ id })
   } catch (e) {
@@ -242,7 +254,13 @@ app.post('/lesson-plans/parse-document', async (c) => {
       { role: 'user' as const, content: prompt },
     ], { max_tokens: 800 })
     const match = raw.trim().match(/\{[\s\S]*\}/)
-    const parsed = match ? (JSON.parse(match[0]) as { learning_objectives?: string[]; key_vocabulary?: string[]; core_values?: string }) : {}
+    const parsed = match ? (JSON.parse(match[0]) as {
+      learning_objectives?: string[]
+      key_vocabulary?: string[]
+      core_values?: string
+      core_concept?: string
+      core_question?: string
+    }) : {}
     return c.json(parsed)
   } catch (e) {
     return c.json({ message: (e as Error).message }, 500)
@@ -269,6 +287,60 @@ app.post('/lesson-plans/generate-climax', async (c) => {
       { role: 'user' as const, content: prompt },
     ], { max_tokens: 400 })
     return c.json({ climax: raw.trim() })
+  } catch (e) {
+    return c.json({ message: (e as Error).message }, 500)
+  }
+})
+
+/** POST /api/lesson-plans/generate-key-questions — AI 生成關鍵提問 */
+app.post('/lesson-plans/generate-key-questions', async (c) => {
+  if (c.get('studentId')) return c.json({ message: 'Teachers only' }, 403)
+  const endpoint = (c.env.AZURE_OPENAI_ENDPOINT ?? '').trim()
+  const apiKey = (c.env.AZURE_OPENAI_API_KEY ?? '').trim()
+  if (!endpoint || !apiKey) return c.json({ message: 'Azure OpenAI 未設定' }, 503)
+  let body: { source_text: string; blocks: Array<{ type: string; activity: string }>; grade_level?: number; core_question?: string }
+  try { body = (await c.req.json()) as typeof body } catch { return c.json({ message: 'Invalid JSON' }, 400) }
+  if (!body.source_text?.trim()) return c.json({ message: 'source_text required' }, 400)
+  const prompt = generateKeyQuestionsPrompt({
+    sourceText: body.source_text,
+    blocks: body.blocks ?? [],
+    gradeLevel: Math.min(6, Math.max(1, body.grade_level ?? 3)),
+    coreQuestion: body.core_question?.trim(),
+  })
+  try {
+    const raw = await chatComplete(endpoint, apiKey, [
+      { role: 'system' as const, content: '你只輸出 JSON 陣列。' },
+      { role: 'user' as const, content: prompt },
+    ], { max_tokens: 500 })
+    const match = raw.trim().match(/\[[\s\S]*\]/)
+    const questions = match ? (JSON.parse(match[0]) as string[]) : []
+    return c.json({ key_questions: questions })
+  } catch (e) {
+    return c.json({ message: (e as Error).message }, 500)
+  }
+})
+
+/** POST /api/lesson-plans/generate-assessment — AI 生成評量設計 */
+app.post('/lesson-plans/generate-assessment', async (c) => {
+  if (c.get('studentId')) return c.json({ message: 'Teachers only' }, 403)
+  const endpoint = (c.env.AZURE_OPENAI_ENDPOINT ?? '').trim()
+  const apiKey = (c.env.AZURE_OPENAI_API_KEY ?? '').trim()
+  if (!endpoint || !apiKey) return c.json({ message: 'Azure OpenAI 未設定' }, 503)
+  let body: { source_text: string; blocks: Array<{ type: string; activity: string }>; grade_level?: number; learning_objectives?: string[] }
+  try { body = (await c.req.json()) as typeof body } catch { return c.json({ message: 'Invalid JSON' }, 400) }
+  if (!body.source_text?.trim()) return c.json({ message: 'source_text required' }, 400)
+  const prompt = generateAssessmentPrompt({
+    sourceText: body.source_text,
+    blocks: body.blocks ?? [],
+    gradeLevel: Math.min(6, Math.max(1, body.grade_level ?? 3)),
+    learningObjectives: body.learning_objectives,
+  })
+  try {
+    const raw = await chatComplete(endpoint, apiKey, [
+      { role: 'system' as const, content: '直接輸出評量設計內容。' },
+      { role: 'user' as const, content: prompt },
+    ], { max_tokens: 600 })
+    return c.json({ assessment_design: raw.trim() })
   } catch (e) {
     return c.json({ message: (e as Error).message }, 500)
   }

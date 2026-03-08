@@ -731,7 +731,7 @@ export async function getLessonPlanById(
   blocks: unknown
   class_id: string | null
 } | null> {
-  const url = `${baseUrl.replace(/\/$/, '')}/rest/v1/lesson_plans?id=eq.${id}&teacher_id=eq.${teacherId}&select=id,title,source_text,grade_level,duration_minutes,strategy_type,blocks,class_id,student_profile,textbook_ref`
+  const url = `${baseUrl.replace(/\/$/, '')}/rest/v1/lesson_plans?id=eq.${id}&teacher_id=eq.${teacherId}&select=id,title,source_text,grade_level,duration_minutes,strategy_type,blocks,class_id,student_profile,textbook_ref,core_concept,core_question,key_questions,plan_mode,assessment_design`
   const res = await supabaseFetch(url, serviceKey)
   if (!res.ok) return null
   const rows = (await res.json()) as Array<{
@@ -745,10 +745,23 @@ export async function getLessonPlanById(
     class_id: string | null
     student_profile: string | null
     textbook_ref: string | null
+    core_concept: string | null
+    core_question: string | null
+    key_questions: string[] | null
+    plan_mode: string | null
+    assessment_design: string | null
   }>
   const row = rows[0]
   if (!row) return null
-  return { ...row, student_profile: row.student_profile ?? null }
+  return {
+    ...row,
+    student_profile: row.student_profile ?? null,
+    core_concept: row.core_concept ?? null,
+    core_question: row.core_question ?? null,
+    key_questions: Array.isArray(row.key_questions) ? row.key_questions : [],
+    plan_mode: row.plan_mode ?? 'detailed',
+    assessment_design: row.assessment_design ?? null,
+  }
 }
 
 /** 教案：建立或更新 */
@@ -767,6 +780,11 @@ export async function upsertLessonPlan(
     blocks: unknown
     student_profile?: string | null
     textbook_ref?: string | null
+    core_concept?: string | null
+    core_question?: string | null
+    key_questions?: string[] | null
+    plan_mode?: string | null
+    assessment_design?: string | null
   }
 ): Promise<string> {
   const body: Record<string, unknown> = {
@@ -780,6 +798,11 @@ export async function upsertLessonPlan(
     blocks: payload.blocks,
     student_profile: payload.student_profile ?? null,
     textbook_ref: payload.textbook_ref ?? null,
+    core_concept: payload.core_concept ?? null,
+    core_question: payload.core_question ?? null,
+    key_questions: Array.isArray(payload.key_questions) ? payload.key_questions : [],
+    plan_mode: payload.plan_mode === 'brief' ? 'brief' : 'detailed',
+    assessment_design: payload.assessment_design ?? null,
     updated_at: new Date().toISOString(),
   }
   if (payload.id) {

@@ -1,9 +1,11 @@
 {
   "scripts": {
+    "db:link": "bash scripts/supabase-link.sh",
     "db:migrate": "npx supabase db push",
-    "db:migrate:url": "npx supabase db push --db-url \"$DATABASE_URL\"",
+    "db:migrate:url": "bash -c 'npx supabase db push --db-url \"${DATABASE_URL:?請設定 DATABASE_URL}\"'",
     "acceptance": "bash scripts/acceptance-verify.sh",
-    "acceptance:full": "bash scripts/acceptance-verify-with-servers.sh"
+    "acceptance:full": "bash scripts/acceptance-verify-with-servers.sh",
+    "acceptance:ppt-poc": "bash scripts/acceptance-verify-ppt-poc.sh"
   },
   "dependencies": {
     "aws4fetch": "^1.0.20",
