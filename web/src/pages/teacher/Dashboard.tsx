@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { apiFetch, getTeacherToken } from '../../lib/api'
 import { useTeacherClass } from '../../contexts/TeacherClassContext'
+import CreateClassForm from '../../components/CreateClassForm'
 
 /** 從 JWT 解出 sub（使用者 ID），僅用於顯示，不驗證簽章 */
 function getUserIdFromJwt(token: string): string | null {
@@ -68,7 +69,7 @@ type WeaknessData = {
 }
 
 export default function Dashboard() {
-  const { classId, classes } = useTeacherClass()
+  const { classId, classes, refreshClasses } = useTeacherClass()
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [weakness, setWeakness] = useState<WeaknessData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -175,7 +176,9 @@ export default function Dashboard() {
   if (classes.length === 0) {
     return (
       <div className="rounded-xl bg-amber-100/80 border border-amber-200 p-6 text-center text-amber-800">
-        <p>尚無班級，請先在 Supabase 建立班級並設定 teacher_id。</p>
+        <p className="font-medium">尚無班級</p>
+        <p className="text-sm mt-1">建立班級後即可開始使用，無需手動設定。</p>
+        <CreateClassForm onSuccess={() => refreshClasses()} />
       </div>
     )
   }

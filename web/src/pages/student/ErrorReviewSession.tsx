@@ -21,14 +21,27 @@ function parseSentencesFromQuestion(q: string): string[] {
 
 function getReorderItems(q: Record<string, unknown>): string[] {
   const fromSentences = (Array.isArray(q.sentences) ? q.sentences : []) as string[]
-  const fromOptions = Array.isArray(q.options) ? (q.options as string[]) : []
+  const fromOptions = Array.isArray(q.options)
+    ? (q.options as unknown[]).map((o) => (typeof o === 'string' ? o : (o as { text?: string })?.text ?? String(o)))
+    : []
+  const fromWords = Array.isArray(q.words) ? (q.words as string[]) : []
   const fromParse = parseSentencesFromQuestion((q.question as string) ?? '')
-  return fromSentences.length > 0 ? fromSentences : fromOptions.length > 0 ? fromOptions : fromParse
+  return fromSentences.length > 0
+    ? fromSentences
+    : fromOptions.length > 0
+      ? fromOptions
+      : fromWords.length > 0
+        ? fromWords
+        : fromParse
 }
 
 function getReorderCorrectAnswer(q: Record<string, unknown>): string {
   const items = getReorderItems(q)
-  let correctOrder = (Array.isArray(q.correct_order) ? q.correct_order : Array.isArray(q.correct) ? (q.correct as number[]) : []) as number[]
+  const correctRaw = q.correct
+  if (Array.isArray(correctRaw) && correctRaw.length > 0 && typeof correctRaw[0] === 'string') {
+    return (correctRaw as string[]).filter(Boolean).join(' → ')
+  }
+  let correctOrder = (Array.isArray(q.correct_order) ? q.correct_order : Array.isArray(correctRaw) ? (correctRaw as number[]) : []) as number[]
   if (correctOrder.length === 0 && items.length > 0) correctOrder = items.map((_, i) => i)
   if (items.length > 0 && correctOrder.length > 0) {
     return correctOrder.map((i: number) => items[i] ?? '').filter(Boolean).join(' → ')
@@ -41,10 +54,13 @@ function gradeQuestion(q: Record<string, unknown>, studentValue: unknown): { isC
   const type = ((q.type as string) ?? '').toLowerCase()
   if (type === 'multiple_choice' || type === 'choice') {
     const correctIdx = Number(q.correct)
-    const opts = q.options as string[] | undefined
+    const optsRaw = q.options as unknown
+    const opts = Array.isArray(optsRaw)
+      ? (optsRaw as unknown[]).map((o) => (typeof o === 'string' ? o : (o as { text?: string })?.text ?? String(o)))
+      : []
     const ans = typeof studentValue === 'number' ? studentValue : Number(studentValue)
     const isCorrect = !Number.isNaN(ans) && ans === correctIdx
-    return { isCorrect, correctAnswer: opts?.[correctIdx] }
+    return { isCorrect, correctAnswer: opts[correctIdx] }
   }
   if (type === 'fill_blank' || type === 'fill') {
     const correct = typeof q.correct === 'string' ? normalizeText(q.correct) : String(q.correct ?? '')
@@ -69,12 +85,67 @@ function gradeQuestion(q: Record<string, unknown>, studentValue: unknown): { isC
   }
   if (type === 'matching' || type === 'match') {
     const pairs = (q.correct_pairs ?? []) as number[][]
+    const left = (q.left ?? []) as string[]
+    const right = (q.right ?? []) as string[]
     const ans = Array.isArray(studentValue) ? studentValue : []
     const normalized = pairs.map(([a, b]: number[]) => `${a},${b}`).sort().join(';')
     const studentNorm = ans.map((p: number[]) => `${p[0]},${p[1]}`).sort().join(';')
-    return { isCorrect: normalized === studentNorm, correctAnswer: '配對正確' }
+    const correctAnswer =
+      left.length > 0 && right.length > 0 && pairs.length > 0
+        ? pairs.map(([a, b]: number[]) => `${left[a] ?? ''} → ${right[b] ?? ''}`).filter(Boolean).join('；')
+        : '配對正確'
+    return { isCorrect: normalized === studentNorm, correctAnswer }
+  }
+  const correctRaw = q.correct
+  if (correctRaw != null && typeof correctRaw !== 'object') {
+    return { isCorrect: false, correctAnswer: String(correctRaw) }
+  }
+  if (Array.isArray(correctRaw) && correctRaw.length > 0) {
+    return { isCorrect: false, correctAnswer: (correctRaw as unknown[]).map(String).join('、') }
   }
   return { isCorrect: false }
+}
+
+function getMatchingCorrectAnswer(q: Record<string, unknown>): string {
+  const pairs = (Array.isArray(q.correct_pairs) ? q.correct_pairs : []) as number[][]
+  const left = (Array.isArray(q.left) ? q.left : []) as string[]
+  const right = (Array.isArray(q.right) ? q.right : []) as string[]
+  if (left.length > 0 && right.length > 0 && pairs.length > 0) {
+    return pairs.map(([a, b]: number[]) => `${left[a] ?? ''} → ${right[b] ?? ''}`).filter(Boolean).join('；')
+  }
+  return ''
+}
+
+/** 從 result、error_content、question 取得正確答案顯示（含 fallback）*/
+function getCorrectDisplay(
+  result: { correctAnswer?: string } | null,
+  question: Record<string, unknown>,
+  errorContent: Record<string, unknown> | undefined
+): string {
+  const t = (question.type as string ?? '').toLowerCase()
+  const fromResult = result?.correctAnswer && String(result.correctAnswer).trim()
+  if (fromResult) return fromResult
+  const fromReorder = (t === 'reorder' || t === 'order') ? getReorderCorrectAnswer(question) : ''
+  if (fromReorder) return fromReorder
+  const fromMatching = (t === 'matching' || t === 'match') ? getMatchingCorrectAnswer(question) : ''
+  if (fromMatching) return fromMatching
+  const fromSaved = errorContent?.correctAnswer && String(errorContent.correctAnswer).trim()
+  if (fromSaved) return fromSaved
+  const correctAnswerRaw = errorContent?.correct_answer ?? question.correct
+  if (correctAnswerRaw != null) {
+    if (typeof correctAnswerRaw === 'string') return correctAnswerRaw
+    if (typeof correctAnswerRaw === 'boolean') return correctAnswerRaw ? '對' : '錯'
+    if (typeof correctAnswerRaw === 'number' && t === 'multiple_choice') {
+      const optsRaw = question.options as unknown
+      const opts = Array.isArray(optsRaw)
+        ? (optsRaw as unknown[]).map((o) => (typeof o === 'string' ? o : (o as { text?: string })?.text ?? String(o)))
+        : []
+      return opts[correctAnswerRaw] ?? String(correctAnswerRaw)
+    }
+  }
+  const fromRef = question.reference_answer && String(question.reference_answer).trim()
+  if (fromRef) return fromRef
+  return ''
 }
 
 function QuestionInput({
@@ -166,6 +237,16 @@ function QuestionInput({
       />
     )
   }
+  if (type === 'short_answer') {
+    return (
+      <textarea
+        value={typeof value === 'string' ? value : ''}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full min-h-[80px] py-2 px-3 rounded-lg border-2 border-amber-200"
+        placeholder="請輸入你的答案"
+      />
+    )
+  }
   return (
     <input
       type="text"
@@ -186,7 +267,7 @@ export default function ErrorReviewSession({
 }) {
   const [index, setIndex] = useState(0)
   const [answer, setAnswer] = useState<unknown>(null)
-  const [result, setResult] = useState<{ isCorrect: boolean; correctAnswer?: string } | null>(null)
+  const [result, setResult] = useState<{ isCorrect: boolean; correctAnswer?: string; feedback?: string } | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [stats, setStats] = useState({ correct: 0, total: 0 })
@@ -195,7 +276,7 @@ export default function ErrorReviewSession({
   const questionData = item?.error_content?.question_data as Record<string, unknown> | undefined
   const question = questionData ?? {}
 
-  // 切換題目時，reorder 需預設為正確順序、matching 需預設 pairs
+  // 切換題目時，reorder 需預設為正確順序、matching 需預設 pairs、short_answer 清空
   useEffect(() => {
     const t = ((question.type as string) ?? '').toLowerCase()
     if (t === 'reorder' || t === 'order') {
@@ -204,9 +285,12 @@ export default function ErrorReviewSession({
     } else if (t === 'matching' || t === 'match') {
       const left = (question.left as string[]) ?? (question.options as string[]) ?? []
       setAnswer(left.map((_, i) => [i, 0]))
+    } else if (t === 'short_answer') {
+      setAnswer('')
     } else {
       setAnswer(null)
     }
+    setResult(null)
   }, [index, item?.id])
 
   const type = ((question.type as string) ?? '').toLowerCase()
@@ -226,29 +310,63 @@ export default function ErrorReviewSession({
       }
       return
     }
-    if (isShortAnswer) {
-      handleNext()
-      return
-    }
     const session = getStudentSession()
     if (!session?.token) {
       setError('請先登入')
       return
     }
-    const graded = gradeQuestion(question, answer)
     setSubmitting(true)
     setError('')
     try {
-      const res = await apiFetch(`/api/error-book/${item.id}/practice`, {
-        method: 'POST',
-        body: JSON.stringify({ isCorrect: graded.isCorrect }),
-      }, { token: session.token })
-      if (!res.ok) {
-        const d = (await res.json().catch(() => ({}))) as { message?: string }
-        throw new Error(d.message ?? '記錄失敗')
+      if (isShortAnswer) {
+        const studentAnswer = typeof answer === 'string' ? answer.trim() : ''
+        if (!studentAnswer) {
+          setError('請輸入你的答案')
+          setSubmitting(false)
+          return
+        }
+        const scoreRes = await apiFetch('/api/score', {
+          method: 'POST',
+          body: JSON.stringify({
+            question: (question.question as string) ?? '',
+            studentAnswer,
+            referenceAnswer: (question.reference_answer as string) ?? '',
+            scoringGuide: (question.scoring_guide as string) ?? '言之有理即可',
+          }),
+        }, { token: session.token })
+        if (!scoreRes.ok) {
+          const d = (await scoreRes.json().catch(() => ({}))) as { message?: string }
+          throw new Error(d.message ?? '評分失敗')
+        }
+        const { score, feedback } = (await scoreRes.json()) as { score?: number; feedback?: string }
+        const isCorrect = (score ?? 0) >= 60
+        const practiceRes = await apiFetch(`/api/error-book/${item.id}/practice`, {
+          method: 'POST',
+          body: JSON.stringify({ isCorrect }),
+        }, { token: session.token })
+        if (!practiceRes.ok) {
+          const d = (await practiceRes.json().catch(() => ({}))) as { message?: string }
+          throw new Error(d.message ?? '記錄失敗')
+        }
+        setResult({
+          isCorrect,
+          correctAnswer: (question.reference_answer as string) ?? undefined,
+          feedback: feedback ?? undefined,
+        })
+        setStats((s) => ({ correct: s.correct + (isCorrect ? 1 : 0), total: s.total + 1 }))
+      } else {
+        const graded = gradeQuestion(question, answer)
+        const res = await apiFetch(`/api/error-book/${item.id}/practice`, {
+          method: 'POST',
+          body: JSON.stringify({ isCorrect: graded.isCorrect }),
+        }, { token: session.token })
+        if (!res.ok) {
+          const d = (await res.json().catch(() => ({}))) as { message?: string }
+          throw new Error(d.message ?? '記錄失敗')
+        }
+        setResult(graded)
+        setStats((s) => ({ correct: s.correct + (graded.isCorrect ? 1 : 0), total: s.total + 1 }))
       }
-      setResult(graded)
-      setStats((s) => ({ correct: s.correct + (graded.isCorrect ? 1 : 0), total: s.total + 1 }))
     } catch (e) {
       setError(e instanceof Error ? e.message : '提交失敗')
     } finally {
@@ -256,7 +374,9 @@ export default function ErrorReviewSession({
     }
   }
 
-  const canSubmit = answer !== null && (Array.isArray(answer) ? answer.length > 0 : String(answer ?? '').trim() !== '')
+  const canSubmit =
+    answer !== null &&
+    (Array.isArray(answer) ? answer.length > 0 : String(answer ?? '').trim() !== '')
   const progress = `${index + 1} / ${items.length}`
 
   if (!item) {
@@ -275,30 +395,6 @@ export default function ErrorReviewSession({
   const isCorrect = result?.isCorrect
   const showResult = result !== undefined && result !== null
 
-  if (isShortAnswer) {
-    return (
-      <div className="flex-1 overflow-auto p-6 flex flex-col">
-        <div className="flex items-center justify-between mb-4">
-          <button type="button" onClick={index === 0 ? onFinish : handleNext} className="text-amber-700 text-sm underline">
-            {index === 0 ? '← 返回' : '← 上一題'}
-          </button>
-          <span className="text-amber-800 text-sm">錯題複習 {progress}</span>
-        </div>
-        <div className="rounded-xl border-2 border-amber-200 bg-amber-50/50 p-4 mb-6">
-          <p className="font-medium text-amber-900 mb-2">第 {index + 1} 題（簡答題）</p>
-          <p className="text-amber-800 mb-3">{questionText}</p>
-          <p className="text-amber-700 text-sm">此題為簡答題，無法在此自動評分。請至原練習中作答。</p>
-        </div>
-        <button
-          type="button"
-          onClick={index + 1 >= items.length ? onFinish : handleNext}
-          className="min-h-[44px] px-6 py-3 rounded-xl bg-amber-500 text-white font-medium touch-manipulation"
-        >
-          {index + 1 >= items.length ? '完成' : '下一題'}
-        </button>
-      </div>
-    )
-  }
 
   return (
     <div className="flex-1 overflow-auto p-6 flex flex-col">
@@ -323,15 +419,14 @@ export default function ErrorReviewSession({
               <>
                 <p className="text-red-700 font-medium">答錯了</p>
                 {(() => {
-                  const q = question as Record<string, unknown>
-                  const t = (q.type as string ?? '').toLowerCase()
-                  const fromApi = result.correctAnswer && String(result.correctAnswer).trim()
-                  const fromReorder = (t === 'reorder' || t === 'order') ? getReorderCorrectAnswer(q) : ''
-                  const correctDisplay = fromApi || fromReorder
+                  const correctDisplay = getCorrectDisplay(result, question as Record<string, unknown>, item?.error_content as Record<string, unknown> | undefined)
                   return correctDisplay ? <p className="text-amber-800">正確答案：{correctDisplay}</p> : null
                 })()}
                 <p className="text-amber-800 mt-1">再答對 3 次即可移出錯題本</p>
               </>
+            )}
+            {result.feedback != null && result.feedback !== '' && (
+              <p className="text-amber-800 mt-1">回饋：{result.feedback}</p>
             )}
           </div>
         )}

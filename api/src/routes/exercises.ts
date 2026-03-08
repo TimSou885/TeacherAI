@@ -38,18 +38,32 @@ function parseSentencesFromQuestion(q: string): string[] {
 
 function getReorderItems(q: Question): string[] {
   const fromSentences = (q.sentences ?? []) as string[]
-  const fromOptions = Array.isArray(q.options) ? (q.options as string[]) : []
+  const fromOptions = Array.isArray(q.options)
+    ? (q.options as unknown[]).map((o) => (typeof o === 'string' ? o : (o as { text?: string; word?: string })?.text ?? (o as { word?: string })?.word ?? String(o)))
+    : []
+  const fromWords = Array.isArray((q as { words?: string[] }).words) ? ((q as { words?: string[] }).words ?? []) : []
   const fromParse = parseSentencesFromQuestion(q.question ?? '')
-  return fromSentences.length > 0 ? fromSentences : fromOptions.length > 0 ? fromOptions : fromParse
+  return fromSentences.length > 0
+    ? fromSentences
+    : fromOptions.length > 0
+      ? fromOptions
+      : fromWords.length > 0
+        ? fromWords
+        : fromParse
 }
 
 function gradeQuestion(q: Question, studentValue: unknown): { isCorrect: boolean; correctAnswer?: string; feedback?: string } {
   const type = (q.type ?? '').toLowerCase()
   if (type === 'multiple_choice' || type === 'choice') {
     const correctIdx = Number(q.correct)
+    const optsRaw = q.options as unknown
+    const opts = Array.isArray(optsRaw)
+      ? (optsRaw as unknown[]).map((o) => (typeof o === 'string' ? o : (o as { text?: string })?.text ?? String(o)))
+      : []
     const ans = typeof studentValue === 'number' ? studentValue : Number(studentValue)
     const isCorrect = !Number.isNaN(ans) && ans === correctIdx
-    return { isCorrect, correctAnswer: q.options?.[correctIdx] }
+    const correctAnswer = opts[correctIdx] ?? deriveCorrectAnswerForErrorBook(q)
+    return { isCorrect, correctAnswer }
   }
   if (type === 'fill_blank' || type === 'fill') {
     const correct = typeof q.correct === 'string' ? normalizeText(q.correct) : String(q.correct ?? '')
@@ -76,12 +90,53 @@ function gradeQuestion(q: Question, studentValue: unknown): { isCorrect: boolean
   }
   if (type === 'matching' || type === 'match') {
     const pairs = (q.correct_pairs ?? []) as number[][]
+    const left = (q.left ?? []) as string[]
+    const right = (q.right ?? []) as string[]
     const ans = Array.isArray(studentValue) ? studentValue : []
     const normalized = pairs.map(([a, b]) => `${a},${b}`).sort().join(';')
     const studentNorm = ans.map((p: number[]) => `${p[0]},${p[1]}`).sort().join(';')
-    return { isCorrect: normalized === studentNorm, correctAnswer: '配對正確' }
+    const correctAnswer =
+      left.length > 0 && right.length > 0 && pairs.length > 0
+        ? pairs.map(([a, b]) => `${left[a] ?? ''} → ${right[b] ?? ''}`).filter(Boolean).join('；')
+        : '配對正確'
+    return { isCorrect: normalized === studentNorm, correctAnswer }
   }
   return { isCorrect: false }
+}
+
+/** 當 gradeQuestion 未回傳 correctAnswer 時，從題目結構推導（供錯題本儲存） */
+function deriveCorrectAnswerForErrorBook(q: Question): string | undefined {
+  const type = (q.type ?? '').toLowerCase()
+  if (type === 'multiple_choice' || type === 'choice') {
+    const idx = Number(q.correct)
+    const optsRaw = q.options as unknown
+    const opts = Array.isArray(optsRaw)
+      ? (optsRaw as unknown[]).map((o) => (typeof o === 'string' ? o : (o as { text?: string })?.text ?? String(o)))
+      : []
+    return opts[idx] ?? (q.correct != null ? String(q.correct) : undefined)
+  }
+  if ((type === 'fill_blank' || type === 'fill') && q.correct != null) return String(q.correct)
+  if (type === 'true_false' || type === 'judge') return Boolean(q.correct) ? '對' : '錯'
+  if (type === 'reorder' || type === 'order') {
+    const items = getReorderItems(q)
+    const correctOrder = (Array.isArray(q.correct_order) ? q.correct_order : Array.isArray(q.correct) ? (q.correct as number[]) : []).slice()
+    const order = correctOrder.length > 0 ? correctOrder : items.map((_, i) => i)
+    if (Array.isArray(q.correct) && q.correct.length > 0 && typeof q.correct[0] === 'string') {
+      return (q.correct as string[]).join(' → ')
+    }
+    return items.length > 0 ? order.map((i) => items[i] ?? '').filter(Boolean).join(' → ') : order.join(', ')
+  }
+  if (type === 'matching' || type === 'match') {
+    const pairs = (q.correct_pairs ?? []) as number[][]
+    const left = (q.left ?? []) as string[]
+    const right = (q.right ?? []) as string[]
+    if (left.length > 0 && right.length > 0 && pairs.length > 0) {
+      return pairs.map(([a, b]) => `${left[a] ?? ''} → ${right[b] ?? ''}`).filter(Boolean).join('；')
+    }
+  }
+  if (type === 'short_answer' && q.reference_answer) return q.reference_answer
+  if (q.correct != null && typeof q.correct !== 'object') return String(q.correct)
+  return undefined
 }
 
 /** GET /api/exercises?class_id=xxx&category=dictation — 列出練習（學生用 JWT 的 classId，老師用 query class_id） */
@@ -154,14 +209,24 @@ app.post('/exercises/:id/submit', async (c) => {
       const question = (q as Question).question ?? ''
       const studentAnswer = typeof studentValue === 'string' ? studentValue : String(studentValue ?? '')
       if (!studentAnswer.trim()) {
-        results.push({ questionIndex: i, isCorrect: false, correctAnswer: undefined, feedback: '未作答' })
+        results.push({
+          questionIndex: i,
+          isCorrect: false,
+          correctAnswer: (q as Question).reference_answer ?? undefined,
+          feedback: '未作答',
+        })
         continue
       }
       try {
         const apiKey = c.env.AZURE_OPENAI_API_KEY
         const endpoint = c.env.AZURE_OPENAI_ENDPOINT
         if (!apiKey || !endpoint) {
-          results.push({ questionIndex: i, isCorrect: false, feedback: '簡答評分未設定' })
+          results.push({
+            questionIndex: i,
+            isCorrect: false,
+            correctAnswer: (q as Question).reference_answer ?? undefined,
+            feedback: '簡答評分未設定',
+          })
           continue
         }
         const systemPrompt = `你是一位小學${gradeLevel}年級的中文老師，正在批改簡答題。只輸出 JSON：{"score": 0-100, "feedback": "回饋"}`
@@ -181,14 +246,21 @@ app.post('/exercises/:id/submit', async (c) => {
         const feedback = typeof parsed.feedback === 'string' ? parsed.feedback : '已批改'
         const isCorrect = score >= 60
         if (isCorrect) correctCount++
-        results.push({ questionIndex: i, isCorrect, feedback })
+        const correctAnswer = !isCorrect ? ((q as Question).reference_answer ?? '') : undefined
+        results.push({ questionIndex: i, isCorrect, correctAnswer, feedback })
       } catch (e) {
-        results.push({ questionIndex: i, isCorrect: false, feedback: (e as Error).message })
+        results.push({
+          questionIndex: i,
+          isCorrect: false,
+          correctAnswer: (q as Question).reference_answer ?? undefined,
+          feedback: (e as Error).message,
+        })
       }
     } else {
-      const { isCorrect, correctAnswer, feedback } = gradeQuestion(q as Question, studentValue)
-      if (isCorrect) correctCount++
-      results.push({ questionIndex: i, isCorrect, correctAnswer, feedback })
+      const graded = gradeQuestion(q as Question, studentValue)
+      if (graded.isCorrect) correctCount++
+      const correctAnswer = (graded.correctAnswer && String(graded.correctAnswer).trim()) || deriveCorrectAnswerForErrorBook(q as Question)
+      results.push({ questionIndex: i, isCorrect: graded.isCorrect, correctAnswer, feedback: graded.feedback })
     }
   }
 
@@ -219,7 +291,12 @@ app.post('/exercises/:id/submit', async (c) => {
         question_type: q.type,
         question_data: q,
       }
-      if (r.correctAnswer != null) errorContent.correctAnswer = r.correctAnswer
+      if (r.correctAnswer != null && String(r.correctAnswer).trim()) {
+        errorContent.correctAnswer = r.correctAnswer
+      } else {
+        const fallback = deriveCorrectAnswerForErrorBook(q as Question)
+        if (fallback) errorContent.correctAnswer = fallback
+      }
       if (r.feedback != null) errorContent.feedback = r.feedback
       try {
         await supabase.upsertErrorBook(baseUrl, serviceKey, {

@@ -3,6 +3,7 @@ import { Link, Outlet, NavLink } from 'react-router-dom'
 import { apiFetch, setCachedTeacherToken } from '../../lib/api'
 import { supabase } from '../../lib/supabase'
 import { TeacherClassProvider, useTeacherClass, type ClassItem } from '../../contexts/TeacherClassContext'
+import CreateClassForm from '../../components/CreateClassForm'
 
 async function fetchClasses(): Promise<ClassItem[]> {
   const res = await apiFetch('/api/classes', undefined, { preferTeacher: true })
@@ -12,7 +13,8 @@ async function fetchClasses(): Promise<ClassItem[]> {
 }
 
 function TeacherNav() {
-  const { classes, classId, setClassId } = useTeacherClass()
+  const { classes, classId, setClassId, refreshClasses } = useTeacherClass()
+  const [showCreate, setShowCreate] = useState(false)
 
   return (
     <div className="min-h-screen bg-amber-50 flex flex-col">
@@ -34,8 +36,25 @@ function TeacherNav() {
               ))}
               {classes.length === 0 && <option value="">— 尚無班級 —</option>}
             </select>
+            <button
+              type="button"
+              onClick={() => setShowCreate((s) => !s)}
+              className="min-h-[40px] px-3 py-1.5 rounded-lg border-2 border-amber-300 text-amber-800 text-sm font-medium hover:bg-amber-50"
+            >
+              {showCreate ? '取消' : '＋ 建立班級'}
+            </button>
           </div>
         </div>
+        {showCreate && (
+          <div className="max-w-4xl mx-auto mt-3 pt-3 border-t border-amber-100">
+            <CreateClassForm
+              onSuccess={() => {
+                refreshClasses()
+                setShowCreate(false)
+              }}
+            />
+          </div>
+        )}
         <nav className="max-w-4xl mx-auto mt-3 flex flex-wrap gap-1">
           <NavLink
             to="/teacher"
