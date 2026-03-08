@@ -1,3 +1,5 @@
+import { supabase } from './supabase'
+
 const rawApiUrl = (import.meta.env.VITE_API_URL ?? '').trim()
 const fromEnv = rawApiUrl && !/^https?:\/\//i.test(rawApiUrl)
   ? `https://${rawApiUrl.replace(/^\/+/, '')}`
@@ -62,7 +64,7 @@ async function getToken(preferStudent?: boolean): Promise<string | null> {
     const student = getStudentSession()
     return student?.token ?? null
   }
-  const { data: { session } } = await import('../lib/supabase').then(m => m.supabase.auth.getSession())
+  const { data: { session } } = await supabase.auth.getSession()
   if (session?.access_token) return session.access_token
   const student = getStudentSession()
   return student?.token ?? null
@@ -77,7 +79,6 @@ export function setCachedTeacherToken(token: string | null): void {
 /** 僅回傳 Supabase 老師 session token（不 fallback 學生），供教師 API 使用 */
 export async function getTeacherToken(): Promise<string | null> {
   if (cachedTeacherToken) return cachedTeacherToken
-  const supabase = (await import('../lib/supabase')).supabase
   const { data: { session } } = await supabase.auth.getSession()
   let token = session?.access_token ?? null
   if (!token) {
