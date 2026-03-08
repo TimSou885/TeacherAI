@@ -47,10 +47,7 @@ app.get('/lesson-plans/:id', async (c) => {
   }
   try {
     const plan = await supabase.getLessonPlanById(baseUrl, serviceKey, id, userId)
-    if (!plan) {
-      const exists = await supabase.checkLessonPlanExists(baseUrl, serviceKey, id)
-      return c.json({ message: exists ? '此教案屬於其他帳號，無法開啟' : 'Not found' }, exists ? 403 : 404)
-    }
+    if (!plan) return c.json({ message: 'Not found' }, 404)
     return c.json(plan)
   } catch (e) {
     return c.json({ message: (e as Error).message }, 500)

@@ -743,36 +743,30 @@ export async function getLessonPlanById(
 } | null> {
   const sid = encodeURIComponent(String(id).trim())
   const base = `${baseUrl.replace(/\/$/, '')}/rest/v1/lesson_plans?id=eq.${sid}`
-  const selectWithTeacher = `${LESSON_PLAN_FULL_SELECT},teacher_id`
-  const baseSelectWithTeacher = `${LESSON_PLAN_BASE_SELECT},teacher_id`
-  let res = await supabaseFetch(`${base}&select=${selectWithTeacher}`, serviceKey)
+  let res = await supabaseFetch(`${base}&select=${LESSON_PLAN_FULL_SELECT}`, serviceKey)
   if (!res.ok && res.status === 400) {
-    res = await supabaseFetch(`${base}&select=${baseSelectWithTeacher}`, serviceKey)
+    res = await supabaseFetch(`${base}&select=${LESSON_PLAN_BASE_SELECT}`, serviceKey)
   }
   if (!res.ok) return null
   const rows = (await res.json()) as Array<Record<string, unknown>>
   const row = rows[0]
   if (!row) return null
-  const rowTid = String(row.teacher_id ?? '').trim().toLowerCase()
-  const wantTid = String(teacherId ?? '').trim().toLowerCase()
-  if (wantTid && rowTid && rowTid !== wantTid) return null
-  const { teacher_id: _t, ...rest } = row
   return {
-    id: rest.id as string,
-    title: rest.title as string,
-    source_text: (rest.source_text as string) ?? null,
-    grade_level: (rest.grade_level as number) ?? 3,
-    duration_minutes: (rest.duration_minutes as number) ?? 40,
-    strategy_type: (rest.strategy_type as string) ?? null,
-    blocks: rest.blocks ?? [],
-    class_id: (rest.class_id as string) ?? null,
-    student_profile: (rest.student_profile as string) ?? null,
-    textbook_ref: (rest.textbook_ref as string) ?? null,
-    core_concept: (rest.core_concept as string) ?? null,
-    core_question: (rest.core_question as string) ?? null,
-    key_questions: Array.isArray(rest.key_questions) ? rest.key_questions as string[] : [],
-    plan_mode: (rest.plan_mode as string) === 'brief' ? 'brief' : 'detailed',
-    assessment_design: (rest.assessment_design as string) ?? null,
+    id: row.id as string,
+    title: row.title as string,
+    source_text: (row.source_text as string) ?? null,
+    grade_level: (row.grade_level as number) ?? 3,
+    duration_minutes: (row.duration_minutes as number) ?? 40,
+    strategy_type: (row.strategy_type as string) ?? null,
+    blocks: row.blocks ?? [],
+    class_id: (row.class_id as string) ?? null,
+    student_profile: (row.student_profile as string) ?? null,
+    textbook_ref: (row.textbook_ref as string) ?? null,
+    core_concept: (row.core_concept as string) ?? null,
+    core_question: (row.core_question as string) ?? null,
+    key_questions: Array.isArray(row.key_questions) ? row.key_questions as string[] : [],
+    plan_mode: (row.plan_mode as string) === 'brief' ? 'brief' : 'detailed',
+    assessment_design: (row.assessment_design as string) ?? null,
   }
 }
 
