@@ -40,8 +40,11 @@ app.get('/lesson-plans/:id', async (c) => {
   }
   const userId = c.get('userId')
   const id = c.req.param('id')
-  const baseUrl = c.env.SUPABASE_URL
-  const serviceKey = c.env.SUPABASE_SERVICE_ROLE_KEY
+  const baseUrl = (c.env.SUPABASE_URL ?? '').trim()
+  const serviceKey = (c.env.SUPABASE_SERVICE_ROLE_KEY ?? '').trim()
+  if (!baseUrl || !serviceKey) {
+    return c.json({ message: 'Server config error: Supabase not configured' }, 500)
+  }
   try {
     const plan = await supabase.getLessonPlanById(baseUrl, serviceKey, id, userId)
     if (!plan) return c.json({ message: 'Not found' }, 404)

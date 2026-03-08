@@ -129,7 +129,14 @@ export default function LessonPlan() {
   async function loadPlan(id: string) {
     try {
       const res = await apiFetch(`/api/lesson-plans/${id}`, undefined, { preferTeacher: true })
-      if (!res.ok) throw new Error('無法載入')
+      if (!res.ok) {
+        let msg = res.status === 404 ? '找不到此教案' : res.status === 401 ? '請重新登入' : '無法載入'
+        try {
+          const errBody = await res.clone().json().catch(() => null) as { message?: string } | null
+          if (errBody?.message) msg += `（${errBody.message}）`
+        } catch { /* ignore */ }
+        throw new Error(msg)
+      }
       const data = (await res.json()) as {
         id: string
         title: string
@@ -161,8 +168,11 @@ export default function LessonPlan() {
       setPlanMode(data.plan_mode === 'brief' ? 'brief' : 'detailed')
       setAssessmentDesign(data.assessment_design ?? '')
       setIsDirty(false)
+      setError('')
     } catch (e) {
-      setError(e instanceof Error ? e.message : '載入失敗')
+      const msg = e instanceof Error ? e.message : '載入失敗'
+      setError(msg)
+      toast.error(msg)
     }
   }
 
