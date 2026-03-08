@@ -21,14 +21,27 @@ function parseSentencesFromQuestion(q: string): string[] {
 
 function getReorderItems(q: Record<string, unknown>): string[] {
   const fromSentences = (Array.isArray(q.sentences) ? q.sentences : []) as string[]
-  const fromOptions = Array.isArray(q.options) ? (q.options as string[]) : []
+  const fromOptions = Array.isArray(q.options)
+    ? (q.options as unknown[]).map((o) => (typeof o === 'string' ? o : (o as { text?: string })?.text ?? String(o)))
+    : []
+  const fromWords = Array.isArray(q.words) ? (q.words as string[]) : []
   const fromParse = parseSentencesFromQuestion((q.question as string) ?? '')
-  return fromSentences.length > 0 ? fromSentences : fromOptions.length > 0 ? fromOptions : fromParse
+  return fromSentences.length > 0
+    ? fromSentences
+    : fromOptions.length > 0
+      ? fromOptions
+      : fromWords.length > 0
+        ? fromWords
+        : fromParse
 }
 
 function getReorderCorrectAnswer(q: Record<string, unknown>): string {
   const items = getReorderItems(q)
-  let correctOrder = (Array.isArray(q.correct_order) ? q.correct_order : Array.isArray(q.correct) ? (q.correct as number[]) : []) as number[]
+  const correctRaw = q.correct
+  if (Array.isArray(correctRaw) && correctRaw.length > 0 && typeof correctRaw[0] === 'string') {
+    return (correctRaw as string[]).filter(Boolean).join(' → ')
+  }
+  let correctOrder = (Array.isArray(q.correct_order) ? q.correct_order : Array.isArray(correctRaw) ? (correctRaw as number[]) : []) as number[]
   if (correctOrder.length === 0 && items.length > 0) correctOrder = items.map((_, i) => i)
   if (items.length > 0 && correctOrder.length > 0) {
     return correctOrder.map((i: number) => items[i] ?? '').filter(Boolean).join(' → ')
@@ -41,10 +54,13 @@ function gradeQuestion(q: Record<string, unknown>, studentValue: unknown): { isC
   const type = ((q.type as string) ?? '').toLowerCase()
   if (type === 'multiple_choice' || type === 'choice') {
     const correctIdx = Number(q.correct)
-    const opts = q.options as string[] | undefined
+    const optsRaw = q.options as unknown
+    const opts = Array.isArray(optsRaw)
+      ? (optsRaw as unknown[]).map((o) => (typeof o === 'string' ? o : (o as { text?: string })?.text ?? String(o)))
+      : []
     const ans = typeof studentValue === 'number' ? studentValue : Number(studentValue)
     const isCorrect = !Number.isNaN(ans) && ans === correctIdx
-    return { isCorrect, correctAnswer: opts?.[correctIdx] }
+    return { isCorrect, correctAnswer: opts[correctIdx] }
   }
   if (type === 'fill_blank' || type === 'fill') {
     const correct = typeof q.correct === 'string' ? normalizeText(q.correct) : String(q.correct ?? '')
@@ -80,7 +96,56 @@ function gradeQuestion(q: Record<string, unknown>, studentValue: unknown): { isC
         : '配對正確'
     return { isCorrect: normalized === studentNorm, correctAnswer }
   }
+  const correctRaw = q.correct
+  if (correctRaw != null && typeof correctRaw !== 'object') {
+    return { isCorrect: false, correctAnswer: String(correctRaw) }
+  }
+  if (Array.isArray(correctRaw) && correctRaw.length > 0) {
+    return { isCorrect: false, correctAnswer: (correctRaw as unknown[]).map(String).join('、') }
+  }
   return { isCorrect: false }
+}
+
+function getMatchingCorrectAnswer(q: Record<string, unknown>): string {
+  const pairs = (Array.isArray(q.correct_pairs) ? q.correct_pairs : []) as number[][]
+  const left = (Array.isArray(q.left) ? q.left : []) as string[]
+  const right = (Array.isArray(q.right) ? q.right : []) as string[]
+  if (left.length > 0 && right.length > 0 && pairs.length > 0) {
+    return pairs.map(([a, b]: number[]) => `${left[a] ?? ''} → ${right[b] ?? ''}`).filter(Boolean).join('；')
+  }
+  return ''
+}
+
+/** 從 result、error_content、question 取得正確答案顯示（含 fallback）*/
+function getCorrectDisplay(
+  result: { correctAnswer?: string } | null,
+  question: Record<string, unknown>,
+  errorContent: Record<string, unknown> | undefined
+): string {
+  const t = (question.type as string ?? '').toLowerCase()
+  const fromResult = result?.correctAnswer && String(result.correctAnswer).trim()
+  if (fromResult) return fromResult
+  const fromReorder = (t === 'reorder' || t === 'order') ? getReorderCorrectAnswer(question) : ''
+  if (fromReorder) return fromReorder
+  const fromMatching = (t === 'matching' || t === 'match') ? getMatchingCorrectAnswer(question) : ''
+  if (fromMatching) return fromMatching
+  const fromSaved = errorContent?.correctAnswer && String(errorContent.correctAnswer).trim()
+  if (fromSaved) return fromSaved
+  const correctAnswerRaw = errorContent?.correct_answer ?? question.correct
+  if (correctAnswerRaw != null) {
+    if (typeof correctAnswerRaw === 'string') return correctAnswerRaw
+    if (typeof correctAnswerRaw === 'boolean') return correctAnswerRaw ? '對' : '錯'
+    if (typeof correctAnswerRaw === 'number' && t === 'multiple_choice') {
+      const optsRaw = question.options as unknown
+      const opts = Array.isArray(optsRaw)
+        ? (optsRaw as unknown[]).map((o) => (typeof o === 'string' ? o : (o as { text?: string })?.text ?? String(o)))
+        : []
+      return opts[correctAnswerRaw] ?? String(correctAnswerRaw)
+    }
+  }
+  const fromRef = question.reference_answer && String(question.reference_answer).trim()
+  if (fromRef) return fromRef
+  return ''
 }
 
 function QuestionInput({
@@ -354,11 +419,7 @@ export default function ErrorReviewSession({
               <>
                 <p className="text-red-700 font-medium">答錯了</p>
                 {(() => {
-                  const q = question as Record<string, unknown>
-                  const t = (q.type as string ?? '').toLowerCase()
-                  const fromApi = result.correctAnswer && String(result.correctAnswer).trim()
-                  const fromReorder = (t === 'reorder' || t === 'order') ? getReorderCorrectAnswer(q) : ''
-                  const correctDisplay = fromApi || fromReorder
+                  const correctDisplay = getCorrectDisplay(result, question as Record<string, unknown>, item?.error_content as Record<string, unknown> | undefined)
                   return correctDisplay ? <p className="text-amber-800">正確答案：{correctDisplay}</p> : null
                 })()}
                 <p className="text-amber-800 mt-1">再答對 3 次即可移出錯題本</p>

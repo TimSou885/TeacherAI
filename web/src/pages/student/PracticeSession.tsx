@@ -365,7 +365,18 @@ function QuestionBlock({
                   (result.correctAnswer && String(result.correctAnswer).trim()) ||
                   ((type === 'reorder' || type === 'order') ? getReorderCorrectAnswer(q) : '') ||
                   ((type === 'matching' || type === 'match') ? getMatchingCorrectAnswer(q) : '') ||
-                  ((type === 'short_answer' && (q.reference_answer as string)) ? String(q.reference_answer) : '')
+                  ((type === 'short_answer' && (q.reference_answer as string)) ? String(q.reference_answer) : '') ||
+                  (type === 'multiple_choice' || type === 'choice'
+                    ? (() => {
+                        const opts = Array.isArray(q.options)
+                          ? (q.options as unknown[]).map((o) => (typeof o === 'string' ? o : (o as { text?: string })?.text ?? String(o)))
+                          : []
+                        const idx = Number(q.correct)
+                        return opts[idx] ?? (q.correct != null ? String(q.correct) : '')
+                      })()
+                    : '') ||
+                  ((type === 'fill_blank' || type === 'fill') && q.correct != null ? String(q.correct) : '') ||
+                  ((type === 'true_false' || type === 'judge') ? (Boolean(q.correct) ? '對' : '錯') : '')
                 return correctDisplay ? <p className="text-amber-800">正確答案：{correctDisplay}</p> : null
               })()}
             </>
