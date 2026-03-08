@@ -205,6 +205,17 @@ function getReorderCorrectAnswer(question: Record<string, unknown>): string {
   return ''
 }
 
+function getMatchingCorrectAnswer(question: Record<string, unknown>): string {
+  const left = (Array.isArray(question.left) ? question.left : []) as string[]
+  const right = (Array.isArray(question.right) ? question.right : []) as string[]
+  const pairs = (Array.isArray(question.correct_pairs) ? question.correct_pairs : []) as number[][]
+  if (left.length === 0 || right.length === 0 || pairs.length === 0) return ''
+  return pairs
+    .map(([l, r]) => `${left[l] ?? ''} → ${right[r] ?? ''}`)
+    .filter((s) => s !== ' → ')
+    .join('；') || ''
+}
+
 const QUESTION_TYPE_LABELS: Record<string, string> = {
   multiple_choice: '選擇題',
   choice: '選擇題',
@@ -350,7 +361,16 @@ function QuestionBlock({
             <>
               <p className="text-red-700 font-medium">答錯了</p>
               {(() => {
-                const correctDisplay = (result.correctAnswer && String(result.correctAnswer).trim()) || ((type === 'reorder' || type === 'order') ? getReorderCorrectAnswer(question as Record<string, unknown>) : '')
+                let correctDisplay = (result.correctAnswer && String(result.correctAnswer).trim()) || ''
+                if (!correctDisplay && (type === 'reorder' || type === 'order')) {
+                  correctDisplay = getReorderCorrectAnswer(question as Record<string, unknown>)
+                }
+                if (!correctDisplay && type === 'short_answer') {
+                  correctDisplay = (question as Question & { reference_answer?: string }).reference_answer ?? ''
+                }
+                if (!correctDisplay && (type === 'matching' || type === 'match')) {
+                  correctDisplay = getMatchingCorrectAnswer(question as Record<string, unknown>)
+                }
                 return correctDisplay ? <p className="text-amber-800">正確答案：{correctDisplay}</p> : null
               })()}
             </>

@@ -37,6 +37,17 @@ function getReorderCorrectAnswer(q: Record<string, unknown>): string {
   return ''
 }
 
+function getMatchingCorrectAnswer(q: Record<string, unknown>): string {
+  const left = (Array.isArray(q.left) ? q.left : []) as string[]
+  const right = (Array.isArray(q.right) ? q.right : []) as string[]
+  const pairs = (Array.isArray(q.correct_pairs) ? q.correct_pairs : []) as number[][]
+  if (left.length === 0 || right.length === 0 || pairs.length === 0) return ''
+  return pairs
+    .map(([l, r]) => `${left[l] ?? ''} → ${right[r] ?? ''}`)
+    .filter((s) => s !== ' → ')
+    .join('；') || ''
+}
+
 function gradeQuestion(q: Record<string, unknown>, studentValue: unknown): { isCorrect: boolean; correctAnswer?: string } {
   const type = ((q.type as string) ?? '').toLowerCase()
   if (type === 'multiple_choice' || type === 'choice') {
@@ -72,7 +83,7 @@ function gradeQuestion(q: Record<string, unknown>, studentValue: unknown): { isC
     const ans = Array.isArray(studentValue) ? studentValue : []
     const normalized = pairs.map(([a, b]: number[]) => `${a},${b}`).sort().join(';')
     const studentNorm = ans.map((p: number[]) => `${p[0]},${p[1]}`).sort().join(';')
-    return { isCorrect: normalized === studentNorm, correctAnswer: '配對正確' }
+    return { isCorrect: normalized === studentNorm, correctAnswer: getMatchingCorrectAnswer(q) }
   }
   return { isCorrect: false }
 }
@@ -327,7 +338,9 @@ export default function ErrorReviewSession({
                   const t = (q.type as string ?? '').toLowerCase()
                   const fromApi = result.correctAnswer && String(result.correctAnswer).trim()
                   const fromReorder = (t === 'reorder' || t === 'order') ? getReorderCorrectAnswer(q) : ''
-                  const correctDisplay = fromApi || fromReorder
+                  const fromMatching = (t === 'matching' || t === 'match') ? getMatchingCorrectAnswer(q) : ''
+                  const fromShortAnswer = (t === 'short_answer' && (q.reference_answer as string)) || ''
+                  const correctDisplay = fromApi || fromReorder || fromMatching || fromShortAnswer
                   return correctDisplay ? <p className="text-amber-800">正確答案：{correctDisplay}</p> : null
                 })()}
                 <p className="text-amber-800 mt-1">再答對 3 次即可移出錯題本</p>

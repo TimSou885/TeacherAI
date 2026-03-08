@@ -43,6 +43,17 @@ function getReorderItems(q: Question): string[] {
   return fromSentences.length > 0 ? fromSentences : fromOptions.length > 0 ? fromOptions : fromParse
 }
 
+function getMatchingCorrectAnswer(q: Question): string {
+  const left = (q.left ?? []) as string[]
+  const right = (q.right ?? []) as string[]
+  const pairs = (q.correct_pairs ?? []) as number[][]
+  if (left.length === 0 || right.length === 0 || pairs.length === 0) return '配對正確'
+  return pairs
+    .map(([l, r]) => `${left[l] ?? ''} → ${right[r] ?? ''}`)
+    .filter((s) => s !== ' → ')
+    .join('；') || '配對正確'
+}
+
 function gradeQuestion(q: Question, studentValue: unknown): { isCorrect: boolean; correctAnswer?: string; feedback?: string } {
   const type = (q.type ?? '').toLowerCase()
   if (type === 'multiple_choice' || type === 'choice') {
@@ -79,7 +90,7 @@ function gradeQuestion(q: Question, studentValue: unknown): { isCorrect: boolean
     const ans = Array.isArray(studentValue) ? studentValue : []
     const normalized = pairs.map(([a, b]) => `${a},${b}`).sort().join(';')
     const studentNorm = ans.map((p: number[]) => `${p[0]},${p[1]}`).sort().join(';')
-    return { isCorrect: normalized === studentNorm, correctAnswer: '配對正確' }
+    return { isCorrect: normalized === studentNorm, correctAnswer: getMatchingCorrectAnswer(q) }
   }
   return { isCorrect: false }
 }
@@ -154,14 +165,24 @@ app.post('/exercises/:id/submit', async (c) => {
       const question = (q as Question).question ?? ''
       const studentAnswer = typeof studentValue === 'string' ? studentValue : String(studentValue ?? '')
       if (!studentAnswer.trim()) {
-        results.push({ questionIndex: i, isCorrect: false, correctAnswer: undefined, feedback: '未作答' })
+        results.push({
+          questionIndex: i,
+          isCorrect: false,
+          correctAnswer: (q as Question).reference_answer,
+          feedback: '未作答',
+        })
         continue
       }
       try {
         const apiKey = c.env.AZURE_OPENAI_API_KEY
         const endpoint = c.env.AZURE_OPENAI_ENDPOINT
         if (!apiKey || !endpoint) {
-          results.push({ questionIndex: i, isCorrect: false, feedback: '簡答評分未設定' })
+          results.push({
+            questionIndex: i,
+            isCorrect: false,
+            feedback: '簡答評分未設定',
+            correctAnswer: (q as Question).reference_answer,
+          })
           continue
         }
         const systemPrompt = `你是一位小學${gradeLevel}年級的中文老師，正在批改簡答題。只輸出 JSON：{"score": 0-100, "feedback": "回饋"}`
@@ -181,9 +202,17 @@ app.post('/exercises/:id/submit', async (c) => {
         const feedback = typeof parsed.feedback === 'string' ? parsed.feedback : '已批改'
         const isCorrect = score >= 60
         if (isCorrect) correctCount++
-        results.push({ questionIndex: i, isCorrect, feedback })
+        const correctAnswer = !isCorrect && (q as Question).reference_answer
+          ? (q as Question).reference_answer
+          : undefined
+        results.push({ questionIndex: i, isCorrect, feedback, correctAnswer })
       } catch (e) {
-        results.push({ questionIndex: i, isCorrect: false, feedback: (e as Error).message })
+        results.push({
+          questionIndex: i,
+          isCorrect: false,
+          feedback: (e as Error).message,
+          correctAnswer: (q as Question).reference_answer,
+        })
       }
     } else {
       const { isCorrect, correctAnswer, feedback } = gradeQuestion(q as Question, studentValue)
