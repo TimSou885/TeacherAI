@@ -28,6 +28,13 @@ SELECT
       "explanation": "應該用「一匹馬」"
     },
     {
+      "type": "matching",
+      "question": "請將左邊的詞與右邊的正確解釋配對",
+      "left": ["茂密", "清脆", "蜿蜒"],
+      "right": ["草木長得又多又密", "聲音清楚悦耳", "彎彎曲曲的樣子"],
+      "correct_pairs": [[0, 0], [1, 1], [2, 2]]
+    },
+    {
       "type": "short_answer",
       "question": "作者為什麼感到開心？用自己的話說一說。",
       "reference_answer": "因為作者和朋友一起玩，度過了快樂的一天。",

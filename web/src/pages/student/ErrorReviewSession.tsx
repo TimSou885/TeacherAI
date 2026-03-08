@@ -69,10 +69,16 @@ function gradeQuestion(q: Record<string, unknown>, studentValue: unknown): { isC
   }
   if (type === 'matching' || type === 'match') {
     const pairs = (q.correct_pairs ?? []) as number[][]
+    const left = (q.left ?? []) as string[]
+    const right = (q.right ?? []) as string[]
     const ans = Array.isArray(studentValue) ? studentValue : []
     const normalized = pairs.map(([a, b]: number[]) => `${a},${b}`).sort().join(';')
     const studentNorm = ans.map((p: number[]) => `${p[0]},${p[1]}`).sort().join(';')
-    return { isCorrect: normalized === studentNorm, correctAnswer: '配對正確' }
+    const correctAnswer =
+      left.length > 0 && right.length > 0 && pairs.length > 0
+        ? pairs.map(([a, b]: number[]) => `${left[a] ?? ''} → ${right[b] ?? ''}`).filter(Boolean).join('；')
+        : '配對正確'
+    return { isCorrect: normalized === studentNorm, correctAnswer }
   }
   return { isCorrect: false }
 }
