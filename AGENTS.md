@@ -30,3 +30,6 @@ Entry points and docs: see `.cursor/rules/project-conventions.mdc`.
 - R2 bucket (`R2_TTS`) is simulated locally by Miniflare — no external setup needed.
 - The root `package.json` is minimal (only `aws4fetch` + `hanzi-writer`); real deps live in `web/` and `api/`.
 - Authentication requires valid Supabase credentials. Without real keys, login flows will fail at the API level, but the frontend renders correctly.
+- **Stale workerd processes**: When restarting `wrangler dev`, the old `workerd` child process may not terminate and keeps holding port 8787. Use `lsof -i :8787` to find and `kill` the stale PID before restarting. The new wrangler instance will start on a random internal port if 8787 is occupied.
+- The API has 5 pre-existing TypeScript errors (type mismatches in `index.ts`, `admin-embed.ts`, `exercises.ts`, `score.ts`, `conversation-scan.ts`). These do not block `wrangler dev` since it uses its own bundler.
+- Student login flow uses class join codes (e.g., `3A2026`) + student selection — no password needed. Teacher login uses Supabase Auth (email/password). There is no teacher signup page; teacher accounts must be created in the Supabase dashboard.
