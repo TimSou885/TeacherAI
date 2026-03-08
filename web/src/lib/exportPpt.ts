@@ -81,8 +81,11 @@ export async function exportPptFromLessonPlan(data: LessonPlanForPpt): Promise<v
   pptx.layout = 'LAYOUT_16x9'
   const isBrief = data.planMode === 'brief'
 
+  const whiteBg = { color: 'FFFFFF' }
+
   // 1. 封面
   const slide1 = pptx.addSlide()
+  slide1.background = whiteBg
   slide1.addText(data.title || '教案', {
     x: 0.5, y: 1.8, w: 9, h: 1,
     fontSize: 32, align: 'center',
@@ -103,6 +106,7 @@ export async function exportPptFromLessonPlan(data: LessonPlanForPpt): Promise<v
   // 2. 核心概念與問題（若有）
   if (data.coreConcept || data.coreQuestion) {
     const slide = pptx.addSlide()
+    slide.background = whiteBg
     addSlideTitle(slide, '核心概念與問題')
     let y = 0.9
     if (data.coreConcept) {
@@ -119,6 +123,7 @@ export async function exportPptFromLessonPlan(data: LessonPlanForPpt): Promise<v
   const hasVocab = (data.keyVocabulary?.length ?? 0) > 0
   if (hasObjectives || hasVocab) {
     const slide = pptx.addSlide()
+    slide.background = whiteBg
     addSlideTitle(slide, '教學目標與重點詞彙')
     let y = 0.9
     if (hasObjectives) {
@@ -135,6 +140,7 @@ export async function exportPptFromLessonPlan(data: LessonPlanForPpt): Promise<v
   // 4. 課文摘要（詳案才有；簡案略過）
   if (!isBrief && data.sourceText.trim()) {
     const slide = pptx.addSlide()
+    slide.background = whiteBg
     addSlideTitle(slide, '課文摘要')
     const text = data.sourceText.slice(0, 400) + (data.sourceText.length > 400 ? '…' : '')
     slide.addText(text, { x: 0.5, y: 0.9, w: 9, h: 4, fontSize: 14, valign: 'top', ...ZH_OPTS })
@@ -145,6 +151,7 @@ export async function exportPptFromLessonPlan(data: LessonPlanForPpt): Promise<v
     if (isBrief) {
       // 簡案：合併為 1 張
       const slide = pptx.addSlide()
+      slide.background = whiteBg
       addSlideTitle(slide, '教學環節')
       const items = data.blocks.map((b, i) => `${i + 1}. ${b.type}－${b.activity}（${b.durationMinutes} 分）`)
       addBullets(slide, items, 0.9)
@@ -153,6 +160,7 @@ export async function exportPptFromLessonPlan(data: LessonPlanForPpt): Promise<v
       for (let i = 0; i < data.blocks.length; i++) {
         const block = data.blocks[i]
         const slide = pptx.addSlide()
+        slide.background = whiteBg
         addSlideTitle(slide, `${i + 1}. ${block.type}－${block.activity}（${block.durationMinutes} 分）`)
         if (block.script.length > 0) {
           const lines = summarizeScript(block.script)
@@ -167,6 +175,7 @@ export async function exportPptFromLessonPlan(data: LessonPlanForPpt): Promise<v
   // 6. 關鍵提問（若有）
   if (data.keyQuestions.length > 0) {
     const slide = pptx.addSlide()
+    slide.background = whiteBg
     addSlideTitle(slide, '關鍵提問')
     const questions = isBrief ? data.keyQuestions.slice(0, 3) : data.keyQuestions
     addBullets(slide, questions.map((q, i) => `${i + 1}. ${q}`), 0.9)
@@ -175,6 +184,7 @@ export async function exportPptFromLessonPlan(data: LessonPlanForPpt): Promise<v
   // 7. 板書（若有）- 階段 3：結構化呈現
   if (data.boardLayout.trim() && !isBrief) {
     const slide = pptx.addSlide()
+    slide.background = whiteBg
     addSlideTitle(slide, '板書預覽')
     addBoardLayoutStructured(slide, data.boardLayout)
   }
@@ -182,6 +192,7 @@ export async function exportPptFromLessonPlan(data: LessonPlanForPpt): Promise<v
   // 8. 教具清單（簡案略過）
   if (!isBrief && data.propsList.length > 0) {
     const slide = pptx.addSlide()
+    slide.background = whiteBg
     addSlideTitle(slide, '教具清單')
     addBullets(slide, data.propsList, 0.9)
   }
@@ -189,6 +200,7 @@ export async function exportPptFromLessonPlan(data: LessonPlanForPpt): Promise<v
   // 9. 價值觀昇華（若有）
   if (data.climax.trim()) {
     const slide = pptx.addSlide()
+    slide.background = whiteBg
     addSlideTitle(slide, '價值觀昇華')
     const text = isBrief ? data.climax.slice(0, 200) + (data.climax.length > 200 ? '…' : '') : data.climax
     slide.addText(text, { x: 0.5, y: 0.9, w: 9, h: 4, valign: 'top', ...BODY })
@@ -197,6 +209,7 @@ export async function exportPptFromLessonPlan(data: LessonPlanForPpt): Promise<v
   // 10. 作業與延伸（若有）
   if (data.homework.length > 0) {
     const slide = pptx.addSlide()
+    slide.background = whiteBg
     addSlideTitle(slide, '作業與延伸')
     const items = isBrief ? data.homework.slice(0, 3) : data.homework
     addBullets(slide, items, 0.9)
@@ -205,6 +218,7 @@ export async function exportPptFromLessonPlan(data: LessonPlanForPpt): Promise<v
   // 11. 評量設計（簡案略過）
   if (!isBrief && data.assessmentDesign.trim()) {
     const slide = pptx.addSlide()
+    slide.background = whiteBg
     addSlideTitle(slide, '評量設計')
     const text = data.assessmentDesign.slice(0, 800) + (data.assessmentDesign.length > 800 ? '…' : '')
     slide.addText(text, { x: 0.5, y: 0.9, w: 9, h: 4, fontSize: 14, valign: 'top', ...ZH_OPTS })
@@ -224,9 +238,11 @@ export async function exportPptPoc(): Promise<void> {
   pptx.title = '教案 PPT 測試'
   pptx.author = 'EduSpark'
   pptx.layout = 'LAYOUT_16x9'
+  const whiteBg = { color: 'FFFFFF' }
 
   // 投影片 1：封面
   const slide1 = pptx.addSlide()
+  slide1.background = whiteBg
   slide1.addText('耳朵上的綠星星', {
     x: 0.5,
     y: 2,
@@ -248,6 +264,7 @@ export async function exportPptPoc(): Promise<void> {
 
   // 投影片 2：核心概念與問題
   const slide2 = pptx.addSlide()
+  slide2.background = whiteBg
   slide2.addText('核心概念與問題', {
     x: 0.5,
     y: 0.3,
@@ -273,6 +290,7 @@ export async function exportPptPoc(): Promise<void> {
 
   // 投影片 3：教學目標
   const slide3 = pptx.addSlide()
+  slide3.background = whiteBg
   slide3.addText('教學目標', {
     x: 0.5,
     y: 0.3,
@@ -298,6 +316,7 @@ export async function exportPptPoc(): Promise<void> {
 
   // 投影片 4：教學環節
   const slide4 = pptx.addSlide()
+  slide4.background = whiteBg
   slide4.addText('教學環節', {
     x: 0.5,
     y: 0.3,
@@ -337,6 +356,7 @@ export async function exportPptPoc(): Promise<void> {
 
   // 投影片 5：關鍵提問
   const slide5 = pptx.addSlide()
+  slide5.background = whiteBg
   slide5.addText('關鍵提問', {
     x: 0.5,
     y: 0.3,
