@@ -172,6 +172,16 @@ function QuestionInput({
       />
     )
   }
+  if (type === 'short_answer') {
+    return (
+      <textarea
+        value={typeof value === 'string' ? value : ''}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full min-h-[80px] py-2 px-3 rounded-lg border-2 border-amber-200"
+        placeholder="請輸入你的答案"
+      />
+    )
+  }
   return (
     <input
       type="text"
@@ -192,7 +202,7 @@ export default function ErrorReviewSession({
 }) {
   const [index, setIndex] = useState(0)
   const [answer, setAnswer] = useState<unknown>(null)
-  const [result, setResult] = useState<{ isCorrect: boolean; correctAnswer?: string } | null>(null)
+  const [result, setResult] = useState<{ isCorrect: boolean; correctAnswer?: string; feedback?: string } | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [stats, setStats] = useState({ correct: 0, total: 0 })
@@ -201,7 +211,7 @@ export default function ErrorReviewSession({
   const questionData = item?.error_content?.question_data as Record<string, unknown> | undefined
   const question = questionData ?? {}
 
-  // 切換題目時，reorder 需預設為正確順序、matching 需預設 pairs
+  // 切換題目時，reorder 需預設為正確順序、matching 需預設 pairs、short_answer 清空
   useEffect(() => {
     const t = ((question.type as string) ?? '').toLowerCase()
     if (t === 'reorder' || t === 'order') {
@@ -210,9 +220,12 @@ export default function ErrorReviewSession({
     } else if (t === 'matching' || t === 'match') {
       const left = (question.left as string[]) ?? (question.options as string[]) ?? []
       setAnswer(left.map((_, i) => [i, 0]))
+    } else if (t === 'short_answer') {
+      setAnswer('')
     } else {
       setAnswer(null)
     }
+    setResult(null)
   }, [index, item?.id])
 
   const type = ((question.type as string) ?? '').toLowerCase()
@@ -232,29 +245,63 @@ export default function ErrorReviewSession({
       }
       return
     }
-    if (isShortAnswer) {
-      handleNext()
-      return
-    }
     const session = getStudentSession()
     if (!session?.token) {
       setError('請先登入')
       return
     }
-    const graded = gradeQuestion(question, answer)
     setSubmitting(true)
     setError('')
     try {
-      const res = await apiFetch(`/api/error-book/${item.id}/practice`, {
-        method: 'POST',
-        body: JSON.stringify({ isCorrect: graded.isCorrect }),
-      }, { token: session.token })
-      if (!res.ok) {
-        const d = (await res.json().catch(() => ({}))) as { message?: string }
-        throw new Error(d.message ?? '記錄失敗')
+      if (isShortAnswer) {
+        const studentAnswer = typeof answer === 'string' ? answer.trim() : ''
+        if (!studentAnswer) {
+          setError('請輸入你的答案')
+          setSubmitting(false)
+          return
+        }
+        const scoreRes = await apiFetch('/api/score', {
+          method: 'POST',
+          body: JSON.stringify({
+            question: (question.question as string) ?? '',
+            studentAnswer,
+            referenceAnswer: (question.reference_answer as string) ?? '',
+            scoringGuide: (question.scoring_guide as string) ?? '言之有理即可',
+          }),
+        }, { token: session.token })
+        if (!scoreRes.ok) {
+          const d = (await scoreRes.json().catch(() => ({}))) as { message?: string }
+          throw new Error(d.message ?? '評分失敗')
+        }
+        const { score, feedback } = (await scoreRes.json()) as { score?: number; feedback?: string }
+        const isCorrect = (score ?? 0) >= 60
+        const practiceRes = await apiFetch(`/api/error-book/${item.id}/practice`, {
+          method: 'POST',
+          body: JSON.stringify({ isCorrect }),
+        }, { token: session.token })
+        if (!practiceRes.ok) {
+          const d = (await practiceRes.json().catch(() => ({}))) as { message?: string }
+          throw new Error(d.message ?? '記錄失敗')
+        }
+        setResult({
+          isCorrect,
+          correctAnswer: (question.reference_answer as string) ?? undefined,
+          feedback: feedback ?? undefined,
+        })
+        setStats((s) => ({ correct: s.correct + (isCorrect ? 1 : 0), total: s.total + 1 }))
+      } else {
+        const graded = gradeQuestion(question, answer)
+        const res = await apiFetch(`/api/error-book/${item.id}/practice`, {
+          method: 'POST',
+          body: JSON.stringify({ isCorrect: graded.isCorrect }),
+        }, { token: session.token })
+        if (!res.ok) {
+          const d = (await res.json().catch(() => ({}))) as { message?: string }
+          throw new Error(d.message ?? '記錄失敗')
+        }
+        setResult(graded)
+        setStats((s) => ({ correct: s.correct + (graded.isCorrect ? 1 : 0), total: s.total + 1 }))
       }
-      setResult(graded)
-      setStats((s) => ({ correct: s.correct + (graded.isCorrect ? 1 : 0), total: s.total + 1 }))
     } catch (e) {
       setError(e instanceof Error ? e.message : '提交失敗')
     } finally {
@@ -262,7 +309,9 @@ export default function ErrorReviewSession({
     }
   }
 
-  const canSubmit = answer !== null && (Array.isArray(answer) ? answer.length > 0 : String(answer ?? '').trim() !== '')
+  const canSubmit =
+    answer !== null &&
+    (Array.isArray(answer) ? answer.length > 0 : String(answer ?? '').trim() !== '')
   const progress = `${index + 1} / ${items.length}`
 
   if (!item) {
@@ -281,30 +330,6 @@ export default function ErrorReviewSession({
   const isCorrect = result?.isCorrect
   const showResult = result !== undefined && result !== null
 
-  if (isShortAnswer) {
-    return (
-      <div className="flex-1 overflow-auto p-6 flex flex-col">
-        <div className="flex items-center justify-between mb-4">
-          <button type="button" onClick={index === 0 ? onFinish : handleNext} className="text-amber-700 text-sm underline">
-            {index === 0 ? '← 返回' : '← 上一題'}
-          </button>
-          <span className="text-amber-800 text-sm">錯題複習 {progress}</span>
-        </div>
-        <div className="rounded-xl border-2 border-amber-200 bg-amber-50/50 p-4 mb-6">
-          <p className="font-medium text-amber-900 mb-2">第 {index + 1} 題（簡答題）</p>
-          <p className="text-amber-800 mb-3">{questionText}</p>
-          <p className="text-amber-700 text-sm">此題為簡答題，無法在此自動評分。請至原練習中作答。</p>
-        </div>
-        <button
-          type="button"
-          onClick={index + 1 >= items.length ? onFinish : handleNext}
-          className="min-h-[44px] px-6 py-3 rounded-xl bg-amber-500 text-white font-medium touch-manipulation"
-        >
-          {index + 1 >= items.length ? '完成' : '下一題'}
-        </button>
-      </div>
-    )
-  }
 
   return (
     <div className="flex-1 overflow-auto p-6 flex flex-col">
@@ -338,6 +363,9 @@ export default function ErrorReviewSession({
                 })()}
                 <p className="text-amber-800 mt-1">再答對 3 次即可移出錯題本</p>
               </>
+            )}
+            {result.feedback != null && result.feedback !== '' && (
+              <p className="text-amber-800 mt-1">回饋：{result.feedback}</p>
             )}
           </div>
         )}

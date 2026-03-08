@@ -215,6 +215,75 @@ export async function listClassesByTeacher(
   return (await res.json()) as Array<{ id: string; name: string; join_code: string }>
 }
 
+/** 取得或建立預設學校（建立班級時若無學校則自動建立） */
+async function getOrCreateDefaultSchool(base: string, serviceKey: string): Promise<string | null> {
+  const listUrl = `${base}/rest/v1/schools?select=id&limit=1`
+  const listRes = await supabaseFetch(listUrl, serviceKey)
+  if (!listRes.ok) return null
+  const rows = (await listRes.json()) as Array<{ id: string }>
+  if (rows.length > 0) return rows[0]!.id
+  const insertUrl = `${base}/rest/v1/schools`
+  const insertRes = await supabaseFetch(insertUrl, serviceKey, {
+    method: 'POST',
+    body: JSON.stringify({ name: '本校', region: 'macau' }),
+    headers: { Prefer: 'return=representation' },
+  })
+  if (!insertRes.ok) return null
+  const inserted = (await insertRes.json()) as Array<{ id: string }>
+  return inserted[0]?.id ?? null
+}
+
+/** 產生不重複的班級代碼（6 碼英文數字） */
+function generateJoinCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  let code = ''
+  for (let i = 0; i < 6; i++) {
+    code += chars[Math.floor(Math.random() * chars.length)]
+  }
+  return code
+}
+
+/** 老師建立新班級（自動設定 teacher_id，不需手動到 Supabase） */
+export async function createClassForTeacher(
+  baseUrl: string,
+  serviceKey: string,
+  teacherId: string,
+  payload: { name: string; join_code?: string }
+): Promise<{ id: string; name: string; join_code: string }> {
+  const base = baseUrl.replace(/\/$/, '')
+  const schoolId = await getOrCreateDefaultSchool(base, serviceKey)
+  const name = (payload.name ?? '').trim() || '新班級'
+  let joinCode = (payload.join_code ?? '').trim().toUpperCase()
+  const useRandomCode = !joinCode
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    if (useRandomCode) joinCode = generateJoinCode()
+    const url = `${base}/rest/v1/classes`
+    const body = {
+      school_id: schoolId,
+      name,
+      subject: 'chinese',
+      join_code: joinCode,
+      teacher_id: teacherId,
+    }
+    const res = await supabaseFetch(url, serviceKey, {
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: { Prefer: 'return=representation' },
+    })
+    if (res.ok) {
+      const rows = (await res.json()) as Array<{ id: string; name: string; join_code: string }>
+      return rows[0]!
+    }
+    const text = await res.text()
+    const isDuplicate = text.includes('duplicate') || text.includes('unique')
+    if (isDuplicate && !useRandomCode) throw new Error('班級代碼已存在，請換一個')
+    if (isDuplicate && useRandomCode) continue
+    throw new Error(`建立失敗：${text}`)
+  }
+  throw new Error('班級代碼重複，請稍後再試')
+}
+
 /** 老師認領班級（僅當 teacher_id 為 null 時寫入） */
 export async function claimClassForTeacher(
   baseUrl: string,

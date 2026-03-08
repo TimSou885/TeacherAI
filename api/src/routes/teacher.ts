@@ -83,6 +83,33 @@ app.get('/dashboard', async (c) => {
   }
 })
 
+/** POST /api/teacher/classes — 建立新班級（自動設定 teacher_id） */
+app.post('/classes', async (c) => {
+  if (c.get('studentId')) return c.json({ message: 'Teachers only', code: 'student_forbidden' }, 403)
+  const userId = c.get('userId')
+  if (!userId) return c.json({ message: 'Unauthorized', code: 'missing_teacher_id' }, 401)
+  let body: { name?: string; join_code?: string }
+  try {
+    body = (await c.req.json()) as typeof body
+  } catch {
+    return c.json({ message: 'Invalid JSON' }, 400)
+  }
+  const baseUrl = c.env.SUPABASE_URL
+  const serviceKey = c.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!baseUrl || !serviceKey) return c.json({ message: 'Server config error' }, 500)
+  try {
+    const cls = await supabase.createClassForTeacher(baseUrl, serviceKey, userId, {
+      name: body.name ?? '新班級',
+      join_code: body.join_code,
+    })
+    return c.json(cls, 201)
+  } catch (e) {
+    const msg = (e as Error).message
+    if (msg.includes('已存在')) return c.json({ message: msg, code: 'join_code_taken' }, 409)
+    return c.json({ message: msg }, 500)
+  }
+})
+
 /** POST /api/teacher/claim-class — 認領班級（僅當 teacher_id 為 null 時寫入） */
 app.post('/claim-class', async (c) => {
   if (c.get('studentId')) {
