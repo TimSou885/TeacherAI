@@ -653,6 +653,157 @@ export async function getAiGeneratedContentById(
   return rows[0] ?? null
 }
 
+/** 課文庫：列出教師的課文 */
+export async function listLessonTexts(
+  baseUrl: string,
+  serviceKey: string,
+  teacherId: string
+): Promise<Array<{ id: string; title: string; source_text: string; learning_objectives: string | null; key_vocabulary: string | null; textbook_ref: string | null; created_at: string }>> {
+  const url = `${baseUrl.replace(/\/$/, '')}/rest/v1/lesson_texts?teacher_id=eq.${teacherId}&order=created_at.desc&select=id,title,source_text,learning_objectives,key_vocabulary,textbook_ref,created_at`
+  const res = await supabaseFetch(url, serviceKey)
+  if (!res.ok) return []
+  return (await res.json()) as Array<{
+    id: string
+    title: string
+    source_text: string
+    learning_objectives: string | null
+    key_vocabulary: string | null
+    textbook_ref: string | null
+    created_at: string
+  }>
+}
+
+/** 課文庫：建立課文 */
+export async function createLessonText(
+  baseUrl: string,
+  serviceKey: string,
+  payload: {
+    teacher_id: string
+    title: string
+    source_text: string
+    learning_objectives?: string | null
+    key_vocabulary?: string | null
+    textbook_ref?: string | null
+  }
+): Promise<string> {
+  const url = `${baseUrl.replace(/\/$/, '')}/rest/v1/lesson_texts`
+  const res = await supabaseFetch(url, serviceKey, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    headers: { Prefer: 'return=representation' },
+  })
+  if (!res.ok) throw new Error(`Supabase: ${await res.text()}`)
+  const rows = (await res.json()) as Array<{ id: string }>
+  return rows[0]?.id ?? ''
+}
+
+/** 教案：列出教師的教案 */
+export async function listLessonPlans(
+  baseUrl: string,
+  serviceKey: string,
+  teacherId: string
+): Promise<Array<{ id: string; title: string; strategy_type: string | null; blocks: unknown; created_at: string }>> {
+  const url = `${baseUrl.replace(/\/$/, '')}/rest/v1/lesson_plans?teacher_id=eq.${teacherId}&order=updated_at.desc&select=id,title,strategy_type,blocks,created_at`
+  const res = await supabaseFetch(url, serviceKey)
+  if (!res.ok) return []
+  return (await res.json()) as Array<{
+    id: string
+    title: string
+    strategy_type: string | null
+    blocks: unknown
+    created_at: string
+  }>
+}
+
+/** 教案：取得單一教案 */
+export async function getLessonPlanById(
+  baseUrl: string,
+  serviceKey: string,
+  id: string,
+  teacherId: string
+): Promise<{
+  id: string
+  title: string
+  source_text: string | null
+  grade_level: number
+  duration_minutes: number
+  strategy_type: string | null
+  blocks: unknown
+  class_id: string | null
+} | null> {
+  const url = `${baseUrl.replace(/\/$/, '')}/rest/v1/lesson_plans?id=eq.${id}&teacher_id=eq.${teacherId}&select=id,title,source_text,grade_level,duration_minutes,strategy_type,blocks,class_id,student_profile,textbook_ref`
+  const res = await supabaseFetch(url, serviceKey)
+  if (!res.ok) return null
+  const rows = (await res.json()) as Array<{
+    id: string
+    title: string
+    source_text: string | null
+    grade_level: number
+    duration_minutes: number
+    strategy_type: string | null
+    blocks: unknown
+    class_id: string | null
+    student_profile: string | null
+    textbook_ref: string | null
+  }>
+  const row = rows[0]
+  if (!row) return null
+  return { ...row, student_profile: row.student_profile ?? null }
+}
+
+/** 教案：建立或更新 */
+export async function upsertLessonPlan(
+  baseUrl: string,
+  serviceKey: string,
+  payload: {
+    teacher_id: string
+    id?: string
+    title: string
+    source_text?: string | null
+    class_id?: string | null
+    grade_level?: number
+    duration_minutes?: number
+    strategy_type?: string | null
+    blocks: unknown
+    student_profile?: string | null
+    textbook_ref?: string | null
+  }
+): Promise<string> {
+  const body: Record<string, unknown> = {
+    teacher_id: payload.teacher_id,
+    title: payload.title,
+    source_text: payload.source_text ?? null,
+    class_id: payload.class_id ?? null,
+    grade_level: payload.grade_level ?? 3,
+    duration_minutes: payload.duration_minutes ?? 40,
+    strategy_type: payload.strategy_type ?? null,
+    blocks: payload.blocks,
+    student_profile: payload.student_profile ?? null,
+    textbook_ref: payload.textbook_ref ?? null,
+    updated_at: new Date().toISOString(),
+  }
+  if (payload.id) {
+    const url = `${baseUrl.replace(/\/$/, '')}/rest/v1/lesson_plans?id=eq.${payload.id}&teacher_id=eq.${payload.teacher_id}`
+    const res = await supabaseFetch(url, serviceKey, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+      headers: { Prefer: 'return=representation' },
+    })
+    if (!res.ok) throw new Error(`Supabase: ${await res.text()}`)
+    const rows = (await res.json()) as Array<{ id: string }>
+    return rows[0]?.id ?? payload.id
+  }
+  const url = `${baseUrl.replace(/\/$/, '')}/rest/v1/lesson_plans`
+  const res = await supabaseFetch(url, serviceKey, {
+    method: 'POST',
+    body: JSON.stringify(body),
+    headers: { Prefer: 'return=representation' },
+  })
+  if (!res.ok) throw new Error(`Supabase: ${await res.text()}`)
+  const rows = (await res.json()) as Array<{ id: string }>
+  return rows[0]?.id ?? ''
+}
+
 /** 查詢班級錯題摘要（供「根據錯題出複習題」注入 AI prompt） */
 export async function getClassErrorBookSummary(
   baseUrl: string,

@@ -13,12 +13,21 @@ async function fetchClasses(): Promise<ClassItem[]> {
 
 function TeacherNav() {
   const { classes, classId, setClassId } = useTeacherClass()
+  const [navOpen, setNavOpen] = useState(false)
 
   return (
     <div className="min-h-screen bg-amber-50 flex flex-col">
       <header className="bg-white border-b border-amber-200 px-4 py-3">
         <div className="max-w-4xl mx-auto flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={() => setNavOpen((o) => !o)}
+              className="md:hidden p-2 -ml-2 text-amber-800 hover:bg-amber-100 rounded-lg"
+              aria-label="開啟選單"
+            >
+              {navOpen ? '✕' : '☰'}
+            </button>
             <Link to="/" className="text-amber-700 text-sm underline">首頁</Link>
             <span className="text-amber-900 font-medium">教師工作區</span>
           </div>
@@ -36,7 +45,7 @@ function TeacherNav() {
             </select>
           </div>
         </div>
-        <nav className="max-w-4xl mx-auto mt-3 flex flex-wrap gap-1">
+        <nav className={`max-w-4xl mx-auto mt-3 flex-wrap gap-1 ${navOpen ? 'flex' : 'hidden'} md:flex`}>
           <NavLink
             to="/teacher"
             end
@@ -61,6 +70,14 @@ function TeacherNav() {
             }
           >
             內容
+          </NavLink>
+          <NavLink
+            to="/teacher/lesson-plan"
+            className={({ isActive }) =>
+              `min-h-[40px] px-4 py-2 rounded-lg text-sm font-medium transition ${isActive ? 'bg-amber-500 text-white' : 'text-amber-800 hover:bg-amber-100'}`
+            }
+          >
+            教案設計
           </NavLink>
           <NavLink
             to="/teacher/generate"

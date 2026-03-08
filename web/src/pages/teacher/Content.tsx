@@ -25,6 +25,7 @@ export default function Content() {
   const [exercises, setExercises] = useState<ExerciseItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [retryKey, setRetryKey] = useState(0)
 
   useEffect(() => {
     if (!classId) {
@@ -50,12 +51,13 @@ export default function Content() {
         if (!cancelled) setLoading(false)
       })
     return () => { cancelled = true }
-  }, [classId, classes.length])
+  }, [classId, classes.length, retryKey])
 
   if (classes.length === 0) {
     return (
       <div className="rounded-xl bg-amber-100/80 border border-amber-200 p-6 text-center text-amber-800">
-        <p>尚無班級。</p>
+        <p className="font-medium">尚無班級</p>
+        <p className="mt-2 text-sm">請在 Supabase 建立班級並將 teacher_id 設為您的使用者 ID。</p>
       </div>
     )
   }
@@ -67,7 +69,14 @@ export default function Content() {
   if (error) {
     return (
       <div className="rounded-xl bg-red-50 border border-red-200 p-6 text-red-700">
-        {error}
+        <p>{error}</p>
+        <button
+          type="button"
+          onClick={() => { setError(''); setRetryKey((k) => k + 1) }}
+          className="mt-3 px-4 py-2 rounded-lg border border-red-200 hover:bg-red-100 font-medium"
+        >
+          重試
+        </button>
       </div>
     )
   }
@@ -103,7 +112,15 @@ export default function Content() {
       </ul>
 
       {exercises.length === 0 && (
-        <p className="text-amber-700 text-center py-8">此班級尚無練習，可到「AI 出題」建立。</p>
+        <div className="text-center py-12">
+          <p className="text-amber-700 mb-4">此班級尚無練習</p>
+          <Link
+            to="/teacher/generate"
+            className="inline-block min-h-[44px] px-6 py-3 rounded-xl bg-amber-500 text-white font-medium hover:bg-amber-600"
+          >
+            立即建立（AI 出題）
+          </Link>
+        </div>
       )}
     </div>
   )

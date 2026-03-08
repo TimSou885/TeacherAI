@@ -60,9 +60,16 @@ export default function Login() {
             {loading ? '登入中…' : '登入'}
           </button>
         </form>
-        <p className="mt-4 text-center text-sm text-amber-800/80">
-          <Link to="/" className="underline">返回首頁</Link>
-        </p>
+        <div className="mt-4 space-y-2 text-center text-sm text-amber-800/80">
+          <p>
+            <Link to="/teacher/forgot-password" className="underline hover:text-amber-900">忘記密碼</Link>
+          </p>
+          <p>
+            <Link to="/" className="underline hover:text-amber-900">返回首頁</Link>
+            {' · '}
+            <Link to="/student" className="underline hover:text-amber-900">我是學生</Link>
+          </p>
+        </div>
       </div>
     </div>
   )

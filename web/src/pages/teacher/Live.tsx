@@ -110,7 +110,7 @@ export default function Live() {
       })
       setParticipantCount(0)
     } catch (e) {
-      alert(e instanceof Error ? e.message : '建立失敗')
+      ;(await import('sonner')).toast.error(e instanceof Error ? e.message : '建立失敗')
     } finally {
       setCreating(false)
     }

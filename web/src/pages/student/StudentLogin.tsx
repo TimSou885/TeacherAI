@@ -64,9 +64,10 @@ export default function StudentLogin() {
   if (step === 'list') {
     return (
       <div className="min-h-screen bg-amber-50 flex flex-col items-center p-6 pt-12 relative">
-        <Link to="/" className="absolute top-4 left-4 text-amber-700 text-sm underline hover:text-amber-900">
-          返回首頁 · 老師入口
-        </Link>
+        <div className="absolute top-4 left-4 flex gap-3 text-sm">
+          <Link to="/" className="text-amber-700 underline hover:text-amber-900">返回首頁</Link>
+          <Link to="/teacher/login" className="text-amber-700 underline hover:text-amber-900">老師登入</Link>
+        </div>
         <h1 className="text-xl font-bold text-amber-900 mb-1">{className}</h1>
         <p className="text-amber-800/80 text-sm mb-6">點你的名字進入</p>
         {error && (
@@ -100,9 +101,10 @@ export default function StudentLogin() {
 
   return (
     <div className="min-h-screen bg-amber-50 flex flex-col items-center justify-center p-6 relative">
-      <Link to="/" className="absolute top-4 left-4 text-amber-700 text-sm underline hover:text-amber-900">
-        返回首頁 · 老師入口
-      </Link>
+      <div className="absolute top-4 left-4 flex gap-3 text-sm">
+        <Link to="/" className="text-amber-700 underline hover:text-amber-900">返回首頁</Link>
+        <Link to="/teacher/login" className="text-amber-700 underline hover:text-amber-900">老師登入</Link>
+      </div>
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-lg p-8">
         <h1 className="text-2xl font-bold text-amber-900 mb-2">學生登入</h1>
         <p className="text-amber-800/80 mb-6">輸入老師給的班級代碼</p>

@@ -4,10 +4,13 @@ import { hasSupabaseEnv } from './lib/supabase'
 import { getStudentSession } from './lib/api'
 import Home from './pages/Home'
 import Login from './pages/auth/Login'
+import ForgotPassword from './pages/auth/ForgotPassword'
+import ResetPassword from './pages/auth/ResetPassword'
 import TeacherLayout from './pages/teacher/TeacherLayout'
 import Dashboard from './pages/teacher/Dashboard'
 import Students from './pages/teacher/Students'
 import Content from './pages/teacher/Content'
+import LessonPlan from './pages/teacher/LessonPlan'
 import Generate from './pages/teacher/Generate'
 import Quiz from './pages/teacher/Quiz'
 import StrokeTeach from './pages/teacher/StrokeTeach'
@@ -59,6 +62,8 @@ export default function App() {
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Navigate to="/teacher/login" replace />} />
         <Route path="/teacher/login" element={<Login />} />
+        <Route path="/teacher/forgot-password" element={<ForgotPassword />} />
+        <Route path="/teacher/reset-password" element={<ResetPassword />} />
         <Route
           path="/chat"
           element={
@@ -79,6 +84,7 @@ export default function App() {
           <Route index element={<Dashboard />} />
           <Route path="students" element={<Students />} />
           <Route path="content" element={<Content />} />
+          <Route path="lesson-plan" element={<LessonPlan />} />
           <Route path="generate" element={<Generate />} />
           <Route path="quiz" element={<Quiz />} />
           <Route path="stroke-teach" element={<StrokeTeach />} />

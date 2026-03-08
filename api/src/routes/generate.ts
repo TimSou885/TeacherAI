@@ -12,6 +12,56 @@ import type { AuthVariables } from '../middleware/auth'
 
 const app = new Hono<{ Bindings: Env; Variables: AuthVariables }>()
 
+/** GET /api/lesson-texts — 教師的課文庫列表 */
+app.get('/lesson-texts', async (c) => {
+  if (c.get('studentId')) {
+    return c.json({ message: 'Teachers only', code: 'student_forbidden' }, 403)
+  }
+  const userId = c.get('userId')
+  const baseUrl = c.env.SUPABASE_URL
+  const serviceKey = c.env.SUPABASE_SERVICE_ROLE_KEY
+  try {
+    const items = await supabase.listLessonTexts(baseUrl, serviceKey, userId)
+    return c.json({ items })
+  } catch (e) {
+    return c.json({ message: (e as Error).message }, 500)
+  }
+})
+
+/** POST /api/lesson-texts — 儲存課文到課文庫 */
+app.post('/lesson-texts', async (c) => {
+  if (c.get('studentId')) {
+    return c.json({ message: 'Teachers only', code: 'student_forbidden' }, 403)
+  }
+  const userId = c.get('userId')
+  const baseUrl = c.env.SUPABASE_URL
+  const serviceKey = c.env.SUPABASE_SERVICE_ROLE_KEY
+  let body: { title: string; source_text: string; learning_objectives?: string; key_vocabulary?: string; textbook_ref?: string }
+  try {
+    body = (await c.req.json()) as typeof body
+  } catch {
+    return c.json({ message: 'Invalid JSON' }, 400)
+  }
+  const title = (body.title ?? '').trim()
+  const sourceText = (body.source_text ?? '').trim()
+  if (!title || !sourceText) {
+    return c.json({ message: 'title and source_text required' }, 400)
+  }
+  try {
+    const id = await supabase.createLessonText(baseUrl, serviceKey, {
+      teacher_id: userId,
+      title,
+      source_text: sourceText,
+      learning_objectives: body.learning_objectives?.trim() || null,
+      key_vocabulary: body.key_vocabulary?.trim() || null,
+      textbook_ref: body.textbook_ref?.trim() || null,
+    })
+    return c.json({ id })
+  } catch (e) {
+    return c.json({ message: (e as Error).message }, 500)
+  }
+})
+
 /** GET /api/classes — 教師的班級列表 */
 app.get('/classes', async (c) => {
   if (c.get('studentId')) {
@@ -66,6 +116,10 @@ app.post('/generate', async (c) => {
     class_id?: string
     grade_level?: number
     mode?: 'lesson' | 'error_book'
+    learning_objectives?: string
+    key_vocabulary?: string
+    textbook_ref?: string
+    difficulty?: 'easy' | 'medium' | 'hard'
   }
   try {
     body = (await c.req.json()) as typeof body
@@ -123,6 +177,10 @@ app.post('/generate', async (c) => {
         gradeLevel,
         category: cat as GenerateCategory,
         questionCount: CATEGORY_QUESTION_COUNTS[cat as GenerateCategory],
+        learningObjectives: body.learning_objectives?.trim() || undefined,
+        keyVocabulary: body.key_vocabulary?.trim() || undefined,
+        textbookRef: body.textbook_ref?.trim() || undefined,
+        difficulty: body.difficulty,
       }),
     }))
     for (const { category: cat, prompt } of prompts) {
@@ -171,6 +229,10 @@ app.post('/generate', async (c) => {
     gradeLevel,
     category: cat,
     questionCount: CATEGORY_QUESTION_COUNTS[cat] ?? 5,
+    learningObjectives: body.learning_objectives?.trim() || undefined,
+    keyVocabulary: body.key_vocabulary?.trim() || undefined,
+    textbookRef: body.textbook_ref?.trim() || undefined,
+    difficulty: body.difficulty,
   })
 
   try {

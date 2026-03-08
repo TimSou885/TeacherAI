@@ -1,4 +1,10 @@
 {
+  "scripts": {
+    "db:migrate": "npx supabase db push",
+    "db:migrate:url": "npx supabase db push --db-url \"$DATABASE_URL\"",
+    "acceptance": "bash scripts/acceptance-verify.sh",
+    "acceptance:full": "bash scripts/acceptance-verify-with-servers.sh"
+  },
   "dependencies": {
     "aws4fetch": "^1.0.20",
     "hanzi-writer": "^3.7.3"
