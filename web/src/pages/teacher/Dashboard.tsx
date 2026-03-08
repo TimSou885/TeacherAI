@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { apiFetch, getTeacherToken } from '../../lib/api'
+import { supabase } from '../../lib/supabase'
 import { useTeacherClass } from '../../contexts/TeacherClassContext'
 
 /** 從 JWT 解出 sub（使用者 ID），僅用於顯示，不驗證簽章 */
@@ -18,7 +19,7 @@ function UserIdFetcher({ onUserId }: { onUserId: (id: string) => void }) {
   const [id, setId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   useEffect(() => {
-    import('../../lib/supabase').then(({ supabase }) => supabase.auth.getSession())
+    supabase.auth.getSession()
       .then(({ data }) => data?.session?.access_token)
       .then((token) => {
         const uid = token ? getUserIdFromJwt(token) : null
@@ -202,7 +203,6 @@ export default function Dashboard() {
               <button
                 type="button"
                 onClick={async () => {
-                  const { supabase } = await import('../../lib/supabase')
                   const { data: { session } } = await supabase.auth.getSession()
                   const token = await getTeacherToken()
                   setSessionDiagnostic({
