@@ -887,7 +887,7 @@ export async function joinLiveSession(
   const sessions = (await sessionRes.json()) as Array<{ class_id: string; status: string }>
   const session = sessions[0]
   if (!session) return 'session_not_waiting'
-  if (session.status === 'ended') return 'session_not_waiting'
+  if (session.status !== 'waiting') return 'session_not_waiting'
   const classId = (session.class_id ?? '').toLowerCase()
   const sid = (studentId ?? '').toLowerCase()
   const studentUrl = `${base}/rest/v1/students?id=eq.${sid}&class_id=eq.${classId}&select=id`
@@ -1014,11 +1014,15 @@ export async function getCostSummary(
   const base = baseUrl.replace(/\/$/, '')
   let url = `${base}/rest/v1/api_cost_log?select=service,estimated_cost_usd,created_at&order=created_at.desc`
   if (options?.month) {
-    const [y, m] = options.month.split('-')
-    const start = `${y}-${m}-01T00:00:00.000Z`
-    const endDate = new Date(parseInt(y, 10), parseInt(m, 10), 0)
-    const end = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 23, 59, 59, 999).toISOString()
-    url += `&created_at=gte.${start}&created_at=lte.${end}`
+    const match = options.month.match(/^(\d{4})-(\d{1,2})$/)
+    const m = match ? parseInt(match[2], 10) : 0
+    if (match && m >= 1 && m <= 12) {
+      const y = match[1]
+      const start = `${y}-${String(m).padStart(2, '0')}-01T00:00:00.000Z`
+      const endDate = new Date(parseInt(y, 10), m, 0)
+      const end = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 23, 59, 59, 999).toISOString()
+      url += `&created_at=gte.${start}&created_at=lte.${end}`
+    }
   }
   const res = await supabaseFetch(url, serviceKey)
   if (!res.ok) {
