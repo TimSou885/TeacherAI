@@ -741,7 +741,9 @@ export async function getLessonPlanById(
   plan_mode?: string
   assessment_design?: string | null
 } | null> {
-  const base = `${baseUrl.replace(/\/$/, '')}/rest/v1/lesson_plans?id=eq.${id}&teacher_id=eq.${teacherId}`
+  const sid = encodeURIComponent(String(id).trim())
+  const tid = encodeURIComponent(String(teacherId).trim())
+  const base = `${baseUrl.replace(/\/$/, '')}/rest/v1/lesson_plans?id=eq.${sid}&teacher_id=eq.${tid}`
   let res = await supabaseFetch(`${base}&select=${LESSON_PLAN_FULL_SELECT}`, serviceKey)
   if (!res.ok && res.status === 400) {
     res = await supabaseFetch(`${base}&select=${LESSON_PLAN_BASE_SELECT}`, serviceKey)
@@ -767,6 +769,19 @@ export async function getLessonPlanById(
     plan_mode: (row.plan_mode as string) === 'brief' ? 'brief' : 'detailed',
     assessment_design: (row.assessment_design as string) ?? null,
   }
+}
+
+/** 教案：檢查 id 是否存在（不限 teacher，供 404 診斷用） */
+export async function checkLessonPlanExists(
+  baseUrl: string,
+  serviceKey: string,
+  id: string
+): Promise<boolean> {
+  const url = `${baseUrl.replace(/\/$/, '')}/rest/v1/lesson_plans?id=eq.${encodeURIComponent(id.trim())}&select=id`
+  const res = await supabaseFetch(url, serviceKey)
+  if (!res.ok) return false
+  const rows = (await res.json()) as Array<{ id?: string }>
+  return rows.length > 0
 }
 
 /** 教案：建立或更新 */

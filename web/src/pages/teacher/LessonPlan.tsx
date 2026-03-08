@@ -130,10 +130,11 @@ export default function LessonPlan() {
     try {
       const res = await apiFetch(`/api/lesson-plans/${id}`, undefined, { preferTeacher: true })
       if (!res.ok) {
-        let msg = res.status === 404 ? '找不到此教案' : res.status === 401 ? '請重新登入' : '無法載入'
+        let msg = res.status === 404 ? '找不到此教案' : res.status === 401 ? '請重新登入' : res.status === 403 ? '此教案屬於其他帳號，無法開啟' : '無法載入'
         try {
           const errBody = await res.clone().json().catch(() => null) as { message?: string } | null
-          if (errBody?.message) msg += `（${errBody.message}）`
+          if (errBody?.message && res.status !== 403) msg += `（${errBody.message}）`
+          else if (errBody?.message && res.status === 403) msg = errBody.message
         } catch { /* ignore */ }
         throw new Error(msg)
       }
