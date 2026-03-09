@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Link, Outlet, NavLink } from 'react-router-dom'
-import { apiFetch, setCachedTeacherToken } from '../../lib/api'
+import { Link, Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { apiFetch, setCachedTeacherToken, clearStudentSession } from '../../lib/api'
 import { supabase } from '../../lib/supabase'
 import { TeacherClassProvider, useTeacherClass, type ClassItem } from '../../contexts/TeacherClassContext'
 
@@ -11,9 +11,21 @@ async function fetchClasses(): Promise<ClassItem[]> {
   return data.classes ?? []
 }
 
+const navLinkClass = (isActive: boolean) =>
+  `min-h-[40px] px-4 py-2 rounded-lg text-sm font-medium transition ${isActive ? 'bg-amber-500 text-white' : 'text-amber-800 hover:bg-amber-100'}`
+
 function TeacherNav() {
+  const navigate = useNavigate()
   const { classes, classId, setClassId } = useTeacherClass()
   const [navOpen, setNavOpen] = useState(false)
+  const [toolsOpen, setToolsOpen] = useState(false)
+
+  async function handleLogout() {
+    clearStudentSession()
+    await supabase.auth.signOut()
+    setCachedTeacherToken(null)
+    navigate('/teacher/login', { replace: true })
+  }
 
   return (
     <div className="min-h-screen bg-amber-50 flex flex-col">
@@ -31,94 +43,51 @@ function TeacherNav() {
             <Link to="/" className="text-amber-700 text-sm underline">首頁</Link>
             <span className="text-amber-900 font-medium">教師工作區</span>
           </div>
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-amber-800">班級：</label>
-            <select
-              value={classId}
-              onChange={(e) => setClassId(e.target.value)}
-              className="min-h-[40px] py-1.5 px-3 rounded-lg border-2 border-amber-200 bg-white text-amber-900"
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-amber-800">班級：</label>
+              <select
+                value={classId}
+                onChange={(e) => setClassId(e.target.value)}
+                className="min-h-[40px] py-1.5 px-3 rounded-lg border-2 border-amber-200 bg-white text-amber-900"
+              >
+                {classes.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+                {classes.length === 0 && <option value="">— 尚無班級 —</option>}
+              </select>
+            </div>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="text-sm text-amber-700 hover:text-amber-900 hover:underline py-1 px-2"
             >
-              {classes.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-              {classes.length === 0 && <option value="">— 尚無班級 —</option>}
-            </select>
+              登出
+            </button>
           </div>
         </div>
-        <nav className={`max-w-4xl mx-auto mt-3 flex-wrap gap-1 ${navOpen ? 'flex' : 'hidden'} md:flex`}>
-          <NavLink
-            to="/teacher"
-            end
-            className={({ isActive }) =>
-              `min-h-[40px] px-4 py-2 rounded-lg text-sm font-medium transition ${isActive ? 'bg-amber-500 text-white' : 'text-amber-800 hover:bg-amber-100'}`
-            }
-          >
-            儀表板
-          </NavLink>
-          <NavLink
-            to="/teacher/students"
-            className={({ isActive }) =>
-              `min-h-[40px] px-4 py-2 rounded-lg text-sm font-medium transition ${isActive ? 'bg-amber-500 text-white' : 'text-amber-800 hover:bg-amber-100'}`
-            }
-          >
-            學生
-          </NavLink>
-          <NavLink
-            to="/teacher/content"
-            className={({ isActive }) =>
-              `min-h-[40px] px-4 py-2 rounded-lg text-sm font-medium transition ${isActive ? 'bg-amber-500 text-white' : 'text-amber-800 hover:bg-amber-100'}`
-            }
-          >
-            內容
-          </NavLink>
-          <NavLink
-            to="/teacher/lesson-plan"
-            className={({ isActive }) =>
-              `min-h-[40px] px-4 py-2 rounded-lg text-sm font-medium transition ${isActive ? 'bg-amber-500 text-white' : 'text-amber-800 hover:bg-amber-100'}`
-            }
-          >
-            教案設計
-          </NavLink>
-          <NavLink
-            to="/teacher/generate"
-            className={({ isActive }) =>
-              `min-h-[40px] px-4 py-2 rounded-lg text-sm font-medium transition ${isActive ? 'bg-amber-500 text-white' : 'text-amber-800 hover:bg-amber-100'}`
-            }
-          >
-            AI 出題
-          </NavLink>
-          <NavLink
-            to="/teacher/quiz"
-            className={({ isActive }) =>
-              `min-h-[40px] px-4 py-2 rounded-lg text-sm font-medium transition ${isActive ? 'bg-amber-500 text-white' : 'text-amber-800 hover:bg-amber-100'}`
-            }
-          >
-            隨堂測驗
-          </NavLink>
-          <NavLink
-            to="/teacher/stroke-teach"
-            className={({ isActive }) =>
-              `min-h-[40px] px-4 py-2 rounded-lg text-sm font-medium transition ${isActive ? 'bg-amber-500 text-white' : 'text-amber-800 hover:bg-amber-100'}`
-            }
-          >
-            筆順教學
-          </NavLink>
-          <NavLink
-            to="/teacher/error-review"
-            className={({ isActive }) =>
-              `min-h-[40px] px-4 py-2 rounded-lg text-sm font-medium transition ${isActive ? 'bg-amber-500 text-white' : 'text-amber-800 hover:bg-amber-100'}`
-            }
-          >
-            錯題討論
-          </NavLink>
-          <NavLink
-            to="/teacher/live"
-            className={({ isActive }) =>
-              `min-h-[40px] px-4 py-2 rounded-lg text-sm font-medium transition ${isActive ? 'bg-amber-500 text-white' : 'text-amber-800 hover:bg-amber-100'}`
-            }
-          >
-            即時測驗
-          </NavLink>
+        <nav className={`max-w-4xl mx-auto mt-3 flex flex-col gap-2 ${navOpen ? 'flex' : 'hidden'} md:flex`}>
+          <div className="flex flex-wrap gap-1">
+            <NavLink to="/teacher" end className={({ isActive }) => navLinkClass(isActive)}>儀表板</NavLink>
+            <NavLink to="/teacher/students" className={({ isActive }) => navLinkClass(isActive)}>學生</NavLink>
+            <NavLink to="/teacher/content" className={({ isActive }) => navLinkClass(isActive)}>內容</NavLink>
+            <NavLink to="/teacher/lesson-plan" className={({ isActive }) => navLinkClass(isActive)}>教案設計</NavLink>
+            <NavLink to="/teacher/generate" className={({ isActive }) => navLinkClass(isActive)}>AI 出題</NavLink>
+            <button
+              type="button"
+              onClick={() => setToolsOpen((o) => !o)}
+              className={`md:hidden min-h-[40px] px-4 py-2 rounded-lg text-sm font-medium transition ${toolsOpen ? 'bg-amber-200 text-amber-900' : 'text-amber-800 hover:bg-amber-100'}`}
+            >
+              課堂工具 {toolsOpen ? '▼' : '▶'}
+            </button>
+          </div>
+          <div className={`flex flex-wrap gap-1 ${toolsOpen ? 'flex' : 'hidden'} md:flex md:flex-row`}>
+            <span className="hidden md:inline text-xs text-amber-600 self-center mr-1">課堂：</span>
+            <NavLink to="/teacher/quiz" className={({ isActive }) => navLinkClass(isActive)} onClick={() => setToolsOpen(false)}>隨堂測驗</NavLink>
+            <NavLink to="/teacher/stroke-teach" className={({ isActive }) => navLinkClass(isActive)} onClick={() => setToolsOpen(false)}>筆順教學</NavLink>
+            <NavLink to="/teacher/error-review" className={({ isActive }) => navLinkClass(isActive)} onClick={() => setToolsOpen(false)}>錯題討論</NavLink>
+            <NavLink to="/teacher/live" className={({ isActive }) => navLinkClass(isActive)} onClick={() => setToolsOpen(false)}>即時測驗</NavLink>
+          </div>
         </nav>
       </header>
       <main className="flex-1 p-4 max-w-4xl mx-auto w-full">

@@ -297,7 +297,7 @@ export default function Generate() {
         </div>
 
         {classes.length === 0 && (
-          <p className="text-amber-700 text-sm">請先在 Supabase 建立班級並設定 teacher_id</p>
+          <p className="text-amber-700 text-sm">請聯絡學校管理員，將您的帳號設為班級負責老師後即可出題。</p>
         )}
 
         {mode === 'lesson' && (
