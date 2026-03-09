@@ -37,22 +37,16 @@ export default function Home() {
         {user ? (
           <>
             <Link
-              to="/chat"
-              className="inline-block w-full py-3 px-4 rounded-xl border-2 border-amber-400 text-amber-800 font-medium hover:bg-amber-50 transition mb-3"
-            >
-              進入 AI 對話
-            </Link>
-            <Link
               to="/teacher"
               className="inline-block w-full py-3 px-4 rounded-xl border-2 border-amber-400 text-amber-800 font-medium hover:bg-amber-50 transition mb-3"
             >
               教師工作區
             </Link>
             <Link
-              to="/teacher/generate"
+              to="/chat"
               className="inline-block w-full py-3 px-4 rounded-xl border-2 border-amber-400 text-amber-800 font-medium hover:bg-amber-50 transition mb-3"
             >
-              AI 出題
+              進入 AI 對話
             </Link>
             <Link
               to="/admin"

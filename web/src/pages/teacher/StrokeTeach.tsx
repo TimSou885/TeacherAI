@@ -6,7 +6,8 @@ export default function StrokeTeach() {
   if (classes.length === 0) {
     return (
       <div className="rounded-xl bg-amber-100/80 border border-amber-200 p-6 text-center text-amber-800">
-        尚無班級。
+        <p className="font-medium">尚無班級</p>
+        <p className="mt-2 text-sm">請聯絡學校管理員，將您的帳號設為班級負責老師。</p>
       </div>
     )
   }

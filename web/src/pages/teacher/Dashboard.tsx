@@ -175,7 +175,13 @@ export default function Dashboard() {
   if (classes.length === 0) {
     return (
       <div className="rounded-xl bg-amber-100/80 border border-amber-200 p-6 text-center text-amber-800">
-        <p>尚無班級，請先在 Supabase 建立班級並設定 teacher_id。</p>
+        <p className="font-medium">尚無班級</p>
+        <p className="mt-2 text-sm">
+          若您是第一次使用，請聯絡學校管理員，請管理員將您的帳號設為班級負責老師。
+        </p>
+        <p className="mt-3 text-xs text-amber-600">
+          管理員需在後台建立班級，並將該班級的負責老師設為您。
+        </p>
       </div>
     )
   }
