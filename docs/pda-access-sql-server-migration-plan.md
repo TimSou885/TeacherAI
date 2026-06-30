@@ -133,6 +133,124 @@ sequenceDiagram
 - 預設歸還狀況為「正常」；可在清單中對單筆改為「損壞／配件缺漏」。
 - 按**確認歸還** → 批次呼叫 `usp_ReturnDeviceBatch`。
 
+### 換機模式（故障先給替換機，維修後換回）
+
+適用情境：借用人手上設備**使用中故障**，設施部**先給另一台頂用**，原機送修；**維修完成後**借用人交回替換機、取回原機。
+
+```mermaid
+sequenceDiagram
+  participant Clerk as 設施部職員
+  participant Swap as frmPOSSwap
+  participant DB as SQL_Server
+
+  Note over Clerk,DB: 階段一：換機（故障當下）
+  Clerk->>Swap: 掃故障設備 A
+  Swap->>DB: 查 A 借出中、借用人
+  Clerk->>Swap: 掃替換設備 B（在庫）
+  Swap->>DB: usp_SwapDevice
+  Note over DB: 結案 A 借出紀錄→維修中<br/>新建 B 借出紀錄<br/>寫入 LoanSwap
+
+  Note over Clerk,DB: 階段二：換回（A 維修完成後）
+  Clerk->>Swap: 掃替換設備 B
+  Clerk->>Swap: 掃已修復設備 A
+  Swap->>DB: usp_SwapBack
+  Note over DB: 歸還 B→在庫<br/>再借出 A 給同一人<br/>LoanSwap 結案
+```
+
+**畫面配置（`frmPOSSwap`）— 兩段式，同一表單切換**
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  【換機】  步驟：①掃故障機  ②掃替換機  ③F2 確認       │
+├─────────────────────────────────────────────────────────┤
+│  故障設備：  PDA-00123  （陳大文／機電組）              │
+│  替換設備：  PDA-00999  （在庫可借 ✓）                  │
+│  故障說明：  [螢幕無法觸控____________]                 │
+├─────────────────────────────────────────────────────────┤
+│  [確認換機 F2]   [清空 F4]   [取消 Esc]                 │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│  【換回】  步驟：①掃替換機  ②掃原機  ③F2 確認          │
+├─────────────────────────────────────────────────────────┤
+│  歸還替換機：PDA-00999  →  在庫                         │
+│  取回原機：  PDA-00123  （已維修完成、在庫可借 ✓）      │
+│  借用人：    陳大文（機電組）— 自動帶出                  │
+├─────────────────────────────────────────────────────────┤
+│  [確認換回 F2]   [清空 F4]   [取消 Esc]                 │
+└─────────────────────────────────────────────────────────┘
+```
+
+**操作規則**
+
+| 規則 | 說明 |
+|------|------|
+| 替換機須在庫 | 狀態為 `available` 才可掃入 |
+| 故障機須借出中 | 須有未歸還紀錄；系統自動帶出借用人 |
+| 換回時原機須已修復 | 狀態須為 `available`（維修完成後在 `frmDevice` 改回在庫） |
+| 一對一綁定 | 每筆 `LoanSwap` 記錄「原機 A ↔ 替換機 B」，避免搞混 |
+| 預計歸還日 | 換機後**繼承**原借出紀錄的 `DueDate`（不因換機而延長） |
+
+**主畫面（`frmMain`）按鈕**：`分派（掃碼）`｜`歸還（掃碼）`｜`換機／換回`｜`遺失登記`
+
+### 遺失登記（分派後對方報失）
+
+適用情境：設備**已借出**，借用人事後通報**遺失**（設備未實物歸還）。
+
+```mermaid
+sequenceDiagram
+  participant Borrower as 借用人
+  participant Clerk as 設施部職員
+  participant Lost as frmPOSLost
+  participant DB as SQL_Server
+
+  Borrower->>Clerk: 通報設備遺失
+  Clerk->>Lost: 掃設備條碼或職員證
+  Lost->>DB: 查未歸還借出紀錄
+  Clerk->>Lost: 填寫遺失說明、通報日期
+  Clerk->>Lost: F2 確認遺失登記
+  Lost->>DB: usp_ReportDeviceLost
+  Note over DB: 結案借出紀錄 ReturnCondition=lost<br/>設備 Status=lost<br/>寫入 DeviceLossReport
+```
+
+**畫面配置（`frmPOSLost`）**
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  【遺失登記】                                            │
+├─────────────────────────────────────────────────────────┤
+│  掃描輸入： [____________]  （設備條碼 或 職員證）        │
+│                                                          │
+│  設備編號：  PDA-00123        借用人：陳大文（機電組）   │
+│  借出日期：  2026-06-15       預計歸還：2026-07-15       │
+│  遺失通報日：[2026-06-28]     通報方式：[當面 ▼]         │
+│  說明：      [借用人表示於工地遺失______________]         │
+│  跟進備註：  [已通知主管____________________]（選填）   │
+├─────────────────────────────────────────────────────────┤
+│  [確認遺失登記 F2]   [清空 F4]   [取消 Esc]              │
+└─────────────────────────────────────────────────────────┘
+```
+
+**操作規則**
+
+| 規則 | 說明 |
+|------|------|
+| 僅限借出中設備 | 須有未歸還的 `LoanTransaction` |
+| 掃碼方式 | 掃**設備條碼**直接定位；或掃**職員證**列出該員未還設備再選一台 |
+| 設備狀態 | 登記後設備改為 `lost`（遺失），**不同於** `retired`（報廢銷案） |
+| 借出紀錄 | 以 `ReturnCondition='lost'` 結案（非實物歸還） |
+| 進行中換機 | 若該設備涉及未完成的 `LoanSwap`，須先處理替換機關係（見下方） |
+| 遺失後補機 | **不自動**分派替換機；若需補發，職員另走 `frmPOSIssue`（新借出紀錄） |
+| 尋回 | 日後尋回可在 `frmDevice` 將狀態 `lost` → `available`（另記尋回備註） |
+
+**換機情境下的遺失**
+
+| 遺失對象 | 處理 |
+|----------|------|
+| **替換機 B** 遺失 | 登記 B 遺失；`LoanSwap` 標記 `cancelled` 或專用狀態；原機 A 若已修好仍可在庫，由主管決定是否再借 |
+| **原機 A**（已送修、借出紀錄已結） | A 已在 `under_repair`，通常不會再報遺失；若整機失蹤改在 `frmDevice` 直接標 `lost` |
+| **一般借出機** 遺失 | 標準 `frmPOSLost` 流程 |
+
 ### 條碼規範
 
 | 標籤對象 | 建議條碼內容 | 範例 | 備註 |
@@ -176,6 +294,52 @@ AS
 BEGIN
   -- 逐筆歸還；整批交易
 END;
+
+-- 換機：故障機 A → 替換機 B（同一借用人）
+CREATE PROCEDURE dbo.usp_SwapDevice
+  @FaultyAssetTag     NVARCHAR(50),
+  @ReplacementAssetTag NVARCHAR(50),
+  @SwapReason         NVARCHAR(500) = NULL,
+  @HandledBy          NVARCHAR(100)
+AS
+BEGIN
+  -- 1. 驗證 A=借出中、B=在庫可借、同一 Borrower 上下文
+  -- 2. 結案 A 的 LoanTransaction（ReturnCondition='swapped_for_repair'）
+  -- 3. A.Status = under_repair
+  -- 4. 新建 B 的 LoanTransaction（繼承 DueDate；IssueNotes 註明替換自 A）
+  -- 5. INSERT LoanSwap（Status='active'）
+  -- 整批 TRANSACTION；失敗則 ROLLBACK
+END;
+
+-- 換回：歸還替換機 B + 原機 A 再借出給同一人
+CREATE PROCEDURE dbo.usp_SwapBack
+  @ReplacementAssetTag NVARCHAR(50),
+  @OriginalAssetTag    NVARCHAR(50),
+  @HandledBy           NVARCHAR(100)
+AS
+BEGIN
+  -- 1. 驗證存在 active 的 LoanSwap（B 借出中、A=available）
+  -- 2. 結案 B 借出（ReturnCondition='normal'）；B.Status = available
+  -- 3. 新建 A 借出給原 Borrower（繼承 DueDate）
+  -- 4. LoanSwap.Status = completed；SwapBackAt = now()
+END;
+
+-- 遺失登記（借出中設備）
+CREATE PROCEDURE dbo.usp_ReportDeviceLost
+  @AssetTag           NVARCHAR(50),
+  @ReportedAt         DATE = NULL,           -- 通報日期，預設今天
+  @ReportChannel      NVARCHAR(50) = NULL,   -- 當面/電話/Email 等
+  @LossDescription    NVARCHAR(500) = NULL,
+  @FollowUpNotes      NVARCHAR(500) = NULL,
+  @HandledBy          NVARCHAR(100)
+AS
+BEGIN
+  -- 1. 驗證設備借出中
+  -- 2. 結案 LoanTransaction（ReturnCondition='lost', ReturnedAt=通報時間）
+  -- 3. Device.Status = 'lost'
+  -- 4. INSERT DeviceLossReport
+  -- 5. 若存在 active LoanSwap 且遺失的是替換機→更新 LoanSwap 狀態並寫 AuditLog
+END;
 ```
 
 ---
@@ -188,11 +352,18 @@ stateDiagram-v2
   Available --> Assigned: 分派借出
   Assigned --> Available: 歸還驗收通過
   Assigned --> UnderRepair: 歸還時發現損壞
+  Assigned --> UnderRepair: 換機收回故障機
+  Assigned --> Assigned: 換機借出替換機
   UnderRepair --> Available: 維修完成
   Available --> Retired: 報廢
   UnderRepair --> Retired: 無法修復報廢
-  Assigned --> Retired: 遺失登記
+  Assigned --> Lost: 遺失登記
+  Lost --> Available: 尋回入庫
+  Lost --> Retired: 確認無法尋回銷案
+  Assigned --> Retired: 遺失後主管裁決報廢
 ```
+
+> 註：`lost`（遺失）表示設備下落不明、借出已結案；`retired`（報廢）表示資產正式銷案，不再流通。
 
 ### 分派（借出）流程 — 超市模式
 
@@ -208,6 +379,29 @@ stateDiagram-v2
 2. 每台帶出借用人資訊，累加至待還清單。
 3. 必要時在清單中標記單台為「損壞」。
 4. 按 **F2 確認歸還** → 批次關閉借出紀錄、更新設備狀態。
+
+### 換機流程 — 故障先給替換機
+
+1. 開啟 `frmPOSSwap`（換機分頁）。
+2. **掃故障設備 A** → 系統帶出借用人、組別。
+3. **掃替換設備 B**（須在庫）→ 顯示配對預覽。
+4. 填寫故障說明（選填）→ **F2 確認換機**。
+5. 結果：A 送修、B 借給同一人；列印換機單（選配）。
+
+### 換回流程 — 維修完成取回原機
+
+1. 維修人員在 `frmDevice` 將 A 狀態改為**在庫可借**。
+2. 開啟 `frmPOSSwap`（換回分頁）。
+3. **掃替換設備 B** → **掃原設備 A**。
+4. **F2 確認換回** → B 歸還入庫、A 再次借出給同一人。
+
+### 遺失登記流程
+
+1. 借用人向設施部通報遺失。
+2. 開啟 `frmPOSLost`；掃**設備條碼**或**職員證**（後者列出該員未還清單供選取）。
+3. 確認借用人、借出日；填寫通報日、通報方式、說明。
+4. **F2 確認遺失登記** → 借出紀錄結案、設備標為遺失。
+5. 若需補發另一台 → 另走 `frmPOSIssue` 新借出（不與遺失紀錄混為一筆）。
 
 ### 傳統表單（備用）
 
@@ -229,7 +423,9 @@ stateDiagram-v2
   - 借用人是否限定為**設施部內職員**，或含其他單位臨時借用？
   - 是否有**預計歸還日**與**逾期提醒**需求？
   - 損壞、遺失、報廢如何處理與記錄？
-  - 需哪些報表（在借清單、逾期、月統計、**各組別借用排行**）？
+  - **換機政策**：是否一律先給替換機？替換機是否限同型號？維修 SLA 幾天？
+  - **遺失處理**：通報後是否補發？誰核准？是否需要書面／主管簽核欄位？
+  - 需哪些報表（在借清單、逾期、月統計、**各組別借用排行**、**進行中換機清單**、**遺失設備清單**）？
 
 ### 0.2 資料實體模型
 
@@ -239,6 +435,8 @@ stateDiagram-v2
 | `Device` | PDA 設備主檔（編號、型號、序號、狀態、歸屬組別） |
 | `Borrower` | 借用人主檔（職員編號、姓名、所屬組別、電話） |
 | `LoanTransaction` | 借還交易（一筆分派到歸還的完整紀錄；可關聯 `BatchId`） |
+| `LoanSwap` | **換機紀錄**（故障機 ↔ 替換機配對、換機／換回時間、狀態） |
+| `DeviceLossReport` | **遺失通報紀錄**（通報日、方式、說明、跟進、經手人） |
 | `DeviceStatusHistory` | 設備狀態變更歷程（選配） |
 | `AuditLog` | 操作稽核 |
 
@@ -248,8 +446,19 @@ stateDiagram-v2
 |--------|----------|------|
 | `available` | 在庫可借 | 可進行分派 |
 | `assigned` | 借出中 | 已有未歸還紀錄 |
-| `under_repair` | 維修中 | 歸還驗收異常或主動送修 |
-| `retired` | 已報廢 | 不再流通 |
+| `under_repair` | 維修中 | 歸還驗收異常、換機收回故障機、或主動送修 |
+| `lost` | 遺失 | 借出後通報遺失，待尋回或銷案 |
+| `retired` | 已報廢 | 確認無法使用／無法尋回，正式銷案 |
+
+**歸還狀況補充（`ReturnCondition`）**
+
+| 狀況碼 | 繁中名稱 | 說明 |
+|--------|----------|------|
+| `normal` | 正常 | 一般歸還或換回時歸還替換機 |
+| `damaged` | 損壞 | 歸還時發現損壞 |
+| `missing_parts` | 配件缺漏 | 充電器等缺件 |
+| `swapped_for_repair` | 換機收回 | 因故障換機而結案原借出紀錄（設備送修） |
+| `lost` | 遺失 | 借用人通報遺失，無實物歸還 |
 
 ### 0.3 產出文件
 
@@ -307,7 +516,7 @@ CREATE TABLE dbo.Device (
   WarrantyUntil  DATE NULL,
   Location       NVARCHAR(100) NULL,            -- 存放位置（可細至某組物料櫃）
   Status         NVARCHAR(20) NOT NULL DEFAULT 'available'
-                 CHECK (Status IN ('available','assigned','under_repair','retired')),
+                 CHECK (Status IN ('available','assigned','under_repair','lost','retired')),
   Notes          NVARCHAR(500) NULL,
   CreatedAt      DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
   UpdatedAt      DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
@@ -321,8 +530,8 @@ CREATE TABLE dbo.LoanTransaction (
   IssuedAt       DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
   DueDate        DATE NULL,                     -- 預計歸還日
   ReturnedAt     DATETIME2 NULL,                -- NULL = 尚未歸還
-  ReturnCondition NVARCHAR(20) NULL             -- normal / damaged / missing_parts
-                 CHECK (ReturnCondition IS NULL OR ReturnCondition IN ('normal','damaged','missing_parts')),
+  ReturnCondition NVARCHAR(20) NULL             -- normal / damaged / missing_parts / swapped_for_repair / lost
+                 CHECK (ReturnCondition IS NULL OR ReturnCondition IN ('normal','damaged','missing_parts','swapped_for_repair','lost')),
   IssueNotes     NVARCHAR(500) NULL,
   ReturnNotes    NVARCHAR(500) NULL,
   IssuedBy       NVARCHAR(100) NOT NULL,          -- 經手設施部職員
@@ -342,6 +551,46 @@ CREATE INDEX IX_LoanTransaction_Borrower_Open
 CREATE INDEX IX_LoanTransaction_DueDate_Open
   ON dbo.LoanTransaction(DueDate)
   WHERE ReturnedAt IS NULL;
+
+-- 換機配對（故障機 ↔ 替換機）
+CREATE TABLE dbo.LoanSwap (
+  SwapId               INT IDENTITY(1,1) PRIMARY KEY,
+  OriginalLoanId       INT NOT NULL REFERENCES dbo.LoanTransaction(LoanId),
+  OriginalDeviceId     INT NOT NULL REFERENCES dbo.Device(DeviceId),
+  ReplacementLoanId    INT NOT NULL REFERENCES dbo.LoanTransaction(LoanId),
+  ReplacementDeviceId  INT NOT NULL REFERENCES dbo.Device(DeviceId),
+  BorrowerId           INT NOT NULL REFERENCES dbo.Borrower(BorrowerId),
+  SwapReason           NVARCHAR(500) NULL,
+  SwappedAt            DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+  SwappedBy            NVARCHAR(100) NOT NULL,
+  SwapBackAt           DATETIME2 NULL,
+  SwapBackBy           NVARCHAR(100) NULL,
+  Status               NVARCHAR(20) NOT NULL DEFAULT 'active'
+                       CHECK (Status IN ('active','completed','cancelled'))
+);
+
+CREATE INDEX IX_LoanSwap_Status ON dbo.LoanSwap(Status) WHERE Status = 'active';
+CREATE INDEX IX_LoanSwap_Borrower ON dbo.LoanSwap(BorrowerId, Status);
+
+-- 遺失通報
+CREATE TABLE dbo.DeviceLossReport (
+  LossReportId    INT IDENTITY(1,1) PRIMARY KEY,
+  LoanId          INT NOT NULL REFERENCES dbo.LoanTransaction(LoanId),
+  DeviceId        INT NOT NULL REFERENCES dbo.Device(DeviceId),
+  BorrowerId      INT NOT NULL REFERENCES dbo.Borrower(BorrowerId),
+  ReportedAt      DATE NOT NULL,
+  ReportChannel   NVARCHAR(50) NULL,       -- 當面、電話、Email 等
+  LossDescription NVARCHAR(500) NULL,
+  FollowUpNotes   NVARCHAR(500) NULL,
+  FollowUpStatus  NVARCHAR(20) NOT NULL DEFAULT 'open'
+                  CHECK (FollowUpStatus IN ('open','found','written_off')),
+  HandledBy       NVARCHAR(100) NOT NULL,
+  CreatedAt       DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+  ResolvedAt      DATETIME2 NULL
+);
+
+CREATE INDEX IX_DeviceLossReport_Status ON dbo.DeviceLossReport(FollowUpStatus);
+CREATE INDEX IX_DeviceLossReport_Device ON dbo.DeviceLossReport(DeviceId);
 
 -- 稽核
 CREATE TABLE dbo.AuditLog (
@@ -374,6 +623,38 @@ JOIN dbo.Borrower b ON b.BorrowerId = lt.BorrowerId
 JOIN dbo.FacilitiesTeam bt ON bt.TeamId = b.TeamId
 LEFT JOIN dbo.FacilitiesTeam dt ON dt.TeamId = d.TeamId
 WHERE lt.ReturnedAt IS NULL;
+
+-- 進行中換機（待換回）
+CREATE VIEW dbo.vw_ActiveSwaps AS
+SELECT
+  ls.SwapId,
+  dOrig.AssetTag AS OriginalAssetTag,
+  dRepl.AssetTag AS ReplacementAssetTag,
+  b.FullName AS BorrowerName,
+  ft.TeamName AS BorrowerTeam,
+  ls.SwappedAt,
+  ls.SwapReason,
+  lt.DueDate
+FROM dbo.LoanSwap ls
+JOIN dbo.Device dOrig ON dOrig.DeviceId = ls.OriginalDeviceId
+JOIN dbo.Device dRepl ON dRepl.DeviceId = ls.ReplacementDeviceId
+JOIN dbo.Borrower b ON b.BorrowerId = ls.BorrowerId
+JOIN dbo.FacilitiesTeam ft ON ft.TeamId = b.TeamId
+JOIN dbo.LoanTransaction lt ON lt.LoanId = ls.ReplacementLoanId
+WHERE ls.Status = 'active';
+
+-- 遺失設備清單
+CREATE VIEW dbo.vw_LostDevices AS
+SELECT
+  d.AssetTag, d.Model, b.FullName AS BorrowerName, ft.TeamName,
+  lr.ReportedAt, lr.ReportChannel, lr.LossDescription,
+  lr.FollowUpStatus, lr.HandledBy, lt.IssuedAt AS OriginalIssuedAt
+FROM dbo.DeviceLossReport lr
+JOIN dbo.Device d ON d.DeviceId = lr.DeviceId
+JOIN dbo.Borrower b ON b.BorrowerId = lr.BorrowerId
+JOIN dbo.FacilitiesTeam ft ON ft.TeamId = b.TeamId
+JOIN dbo.LoanTransaction lt ON lt.LoanId = lr.LoanId
+WHERE d.Status IN ('lost', 'retired') OR lr.FollowUpStatus = 'open';
 
 -- 分派（借出）— 由 Access 呼叫
 CREATE PROCEDURE dbo.usp_IssueDevice
@@ -452,6 +733,10 @@ END;
 |------|------|----------|
 | `frmPOSIssue` | **超市式分派**：掃職員證 → 連續掃設備 → 待借清單 → F2 確認 | **最高** |
 | `frmPOSReturn` | **超市式歸還**：連續掃設備 → 待還清單 → F2 確認 | **最高** |
+| `frmPOSSwap` | **換機／換回**：掃故障機+替換機，或掃替換機+原機 | **高** |
+| `frmPOSLost` | **遺失登記**：掃設備或職員證 → 填通報資訊 → F2 確認 | 中 |
+| `frmActiveSwaps` | 進行中換機清單（待換回，基於 `vw_ActiveSwaps`） | 中 |
+| `frmLostDevices` | 遺失設備清單與跟進（基於 `vw_LostDevices`） | 中 |
 | `frmIssue` | 單筆分派（條碼損毀／例外備用） | 低 |
 | `frmReturn` | 單筆歸還（例外備用） | 低 |
 | `frmDevice` | 設備台帳維護（新增、貼碼登記、報廢、維修完成） | 中 |
@@ -461,7 +746,7 @@ END;
 | `frmOverdue` | 逾期清單（`DaysOverdue > 0`） | 中 |
 | `frmAuditLog` | 操作稽核查詢 | 低 |
 
-**啟動畫面（`frmMain`）**：兩個超大按鈕「分派（掃碼）」「歸還（掃碼）」，預設進入 POS 表單。
+**啟動畫面（`frmMain`）**：四個大按鈕「分派」「歸還」「換機／換回」「遺失登記」。
 
 ### 2.3 報表
 
@@ -471,6 +756,9 @@ END;
 | `rptOpenLoans` | 目前在借清單（PDF／列印） |
 | `rptMonthlyStats` | 月分派／歸還統計（**依組別分組**） |
 | `rptTeamUsage` | 各組別借用排行與未還清單 |
+| `rptActiveSwaps` | **進行中換機清單**（誰還拿著替換機、原機維修狀態） |
+| `rptSwapSlip` | 換機單（故障機、替換機、借用人、時間） |
+| `rptLostDevices` | **遺失設備報表**（通報日、借用人、組別、跟進狀態） |
 | `rptDeviceInventory` | 設備台帳總表（依組別、狀態分組） |
 
 ### 2.4 VBA 重點邏輯（超市掃碼）
@@ -497,6 +785,17 @@ END;
 - 清單欄位：設備編號、借用人、借出日、歸還狀況（下拉，預設正常）。
 - 確認 → `usp_ReturnDeviceBatch`。
 
+**`frmPOSSwap`**
+
+- 分頁：**換機**／**換回**；皆為掃描欄常駐焦點。
+- 換機：掃 A → 掃 B → F2 呼叫 `usp_SwapDevice`。
+- 換回：掃 B → 掃 A → F2 呼叫 `usp_SwapBack`；若 A 非 `available` 提示「原機尚未維修完成」。
+
+**`frmPOSLost`**
+
+- 掃設備碼：直接帶出借出中紀錄；掃職員證：ListBox 列出該員所有未還設備供選一台。
+- F2 呼叫 `usp_ReportDeviceLost`；成功後提示「已登記遺失，如需補發請走分派」。
+
 **共用**
 
 - 單筆備用表單 `frmIssue`／`frmReturn` 仍呼叫 `usp_IssueDevice`／`usp_ReturnDevice`。
@@ -508,7 +807,7 @@ END;
 - 掃描欄常駐焦點；掃描槍送 Enter 即觸發，無需按滑鼠。
 - 待借／待還**件數大字顯示**於畫面右上角（如超市「共 X 件」）。
 - 確認後自動清空，游標回掃描欄，可立即服務下一位。
-- 建議櫃台張貼**掃碼步驟卡**：①掃職員證 ②掃設備 ③按 F2。
+- 建議櫃台張貼**掃碼步驟卡**：①掃職員證 ②掃設備 ③按 F2；換機：①掃故障機 ②掃替換機 ③F2。
 
 **驗收**：職員在不碰滑鼠情況下，完成「掃職員證 → 連掃 3 台設備 → F2 確認」全流程 ≤ 30 秒。
 
@@ -577,7 +876,11 @@ END;
 |------|------|
 | 掃碼 | 連續掃 5 台後一次確認；重複掃同一台提示；掃已借出設備拒絕加入 |
 | 批次 | 確認前關閉表單不寫 DB；確認中斷則整批 rollback |
-| 歸還 | 連續掃 3 台不同借用人設備，一次歸還成功 |
+| 換機 | 故障機借出中 + 替換機在庫 → 換機成功；借用人改持替換機 |
+| 換回 | 替換機歸還 + 原機在庫 → 原機再借給同一人；LoanSwap 結案 |
+| 換機阻擋 | 替換機已借出、原機非借出中、原機未維修完成即換回 → 皆拒絕 |
+| 遺失 | 借出中設備登記遺失 → 借出結案、狀態=lost；非借出中設備拒絕 |
+| 遺失後尋回 | `frmDevice` lost→available；LossReport FollowUpStatus=found |
 | 歸還 | 正常歸還後可再次借出；損壞歸還進入維修中 |
 | 逾期 | 超過 `DueDate` 出現在逾期清單 |
 | 併發 | 兩職員同時分派同一台設備，僅一筆成功 |
@@ -624,6 +927,8 @@ END;
 | 條碼與編號不一致 | 統一 `AssetTag` 規則；Cutover 前批次列印貼標 |
 | 掃描槍未送 Enter | 採購可設定後綴 Enter 的型號；或 VBA Timer 偵測輸入間隔自動提交 |
 | 多人同時操作衝突 | SP + 唯一索引防止雙借 |
+| 換機後搞混設備 | `LoanSwap` 強制一對一配對；`frmActiveSwaps` 待換回清單 |
+| 遺失與借出狀態不一致 | 遺失必須透過 `usp_ReportDeviceLost` 一次結案借出並改狀態 |
 
 ---
 
@@ -631,7 +936,7 @@ END;
 
 1. Phase 0：訪談設施部、盤點台帳與借還流程、簽核規格
 2. Phase 1：SQL Server DEV + 設備／借還 schema + SP
-3. Phase 2：**超市式 POS 表單**（`frmPOSIssue`／`frmPOSReturn`）+ 條碼模組 + 批次 SP
+3. Phase 2：**超市式 POS 表單** + **換機／換回**（`frmPOSSwap`）+ 條碼模組 + 批次 SP
 4. Phase 3：舊資料遷移試跑，重點對帳未還設備
 5. Phase 4：帳號、備份、稽核設定
 6. Phase 5：設施部 UAT
