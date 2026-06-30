@@ -470,6 +470,7 @@ stateDiagram-v2
 |------|------|
 | `FacilitiesTeam` | **設施部組別**（組別代碼、組別名稱，如機電組、清潔組） |
 | `Device` | PDA 設備主檔（編號、型號、序號、狀態、歸屬組別） |
+| `SimDetails` | **SIM 卡明細**（對應現有 Access「sim details」；MSR、SIM 號、電話、物業、狀態） |
 | `Borrower` | 借用人主檔（職員編號、姓名、所屬組別、電話） |
 | `LoanTransaction` | 借還交易（一筆分派到歸還的完整紀錄；可關聯 `BatchId`） |
 | `LoanSwap` | **換機紀錄**（故障機 ↔ 替換機配對、換機／換回時間、狀態） |
@@ -559,6 +560,26 @@ CREATE TABLE dbo.Device (
   UpdatedAt      DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
 );
 
+-- SIM 卡明細（對應現有 Access 表「sim details」）
+CREATE TABLE dbo.SimDetails (
+  SimDetailId      INT IDENTITY(1,1) PRIMARY KEY,
+  LegacyId         INT NULL,                         -- 舊表 ID
+  MsrNo            NVARCHAR(20) NOT NULL,            -- 如 MP-04095（對應 PDA／設備編號）
+  SimNo            NVARCHAR(25) NOT NULL,            -- ICCID，保留前導零
+  PhoneNo          NVARCHAR(8) NULL,                 -- 8 位流動電話，如 66798020
+  RequestDate      DATE NULL,
+  DeliveryDate     DATE NULL,                        -- 舊欄位 Date of Delivery
+  HoldingProperty  NVARCHAR(50) NULL,                -- 如 P01 / P02、P56、SND、Unknown
+  Status           NVARCHAR(50) NULL,                -- 如 Yes、No、PDA Master List No Record
+  DeviceId         INT NULL REFERENCES dbo.Device(DeviceId),  -- 可選：與 Device.AssetTag 對應後填入
+  CreatedAt        DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+  UpdatedAt        DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+);
+
+CREATE UNIQUE INDEX UX_SimDetails_SimNo ON dbo.SimDetails(SimNo);
+CREATE INDEX IX_SimDetails_MsrNo ON dbo.SimDetails(MsrNo);
+CREATE INDEX IX_SimDetails_PhoneNo ON dbo.SimDetails(PhoneNo);
+
 -- 借還交易（核心）
 CREATE TABLE dbo.LoanTransaction (
   LoanId         INT IDENTITY(1,1) PRIMARY KEY,
@@ -641,6 +662,19 @@ CREATE TABLE dbo.AuditLog (
   ChangedAt   DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
 );
 ```
+
+### 1.2.1 現有 Access「sim details」欄位對照
+
+| Access 欄位 | SQL Server 欄位 | 型別 | 備註 |
+|-------------|-----------------|------|------|
+| ID | `LegacyId` | INT | 遷移保留；新表主鍵為 `SimDetailId` |
+| MSR_No | `MsrNo` | NVARCHAR(20) | 如 `MP-04095` |
+| SIM_No | `SimNo` | NVARCHAR(25) | **勿用 BIGINT**，避免前導零遺失 |
+| Phone_No | `PhoneNo` | NVARCHAR(8) | 澳門 8 位號碼 |
+| Request_Date | `RequestDate` | DATE | 可為 NULL |
+| Date of Delivery | `DeliveryDate` | DATE | 可為 NULL |
+| Holding_Property | `HoldingProperty` | NVARCHAR(50) | |
+| Status | `Status` | NVARCHAR(50) | 原值先原樣遷移，日後可改對照表 |
 
 ### 1.3 常用檢視與 Stored Procedure
 
